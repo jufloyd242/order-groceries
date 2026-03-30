@@ -1,0 +1,9 @@
+.addBar {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.addBar input {
+  flex: 1;
+}

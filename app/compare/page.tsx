@@ -1,0 +1,153 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ComparisonResult, ComparisonSummary } from '@/types';
+import { ComparisonRow } from '@/components/ComparisonRow';
+import { CartActions } from '@/components/CartActions';
+
+export default function ComparePage() {
+  const [results, setResults] = useState<ComparisonResult[]>([]);
+  const [summary, setSummary] = useState<ComparisonSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchComparison();
+  }, []);
+
+  async function fetchComparison() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/compare');
+      const data = await res.json();
+      if (data.success) {
+        setResults(data.results);
+        setSummary(data.summary);
+      } else {
+        setError(data.error || 'Failed to fetch comparison');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handlePick(itemId: string, store: 'kroger' | 'amazon') {
+    router.push(`/pick/${itemId}?store=${store}`);
+  }
+
+  async function handleKrogerPush() {
+    const winners = results.filter((r) => r.winner === 'kroger' && r.selected_kroger?.upc);
+    const itemsToPush = winners.map((w) => ({
+      upc: w.selected_kroger!.upc!,
+      quantity: 1, // Default to 1 for now
+    }));
+
+    if (itemsToPush.length === 0) {
+      alert('No King Soopers items to add.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/kroger/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToPush }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+      } else if (res.status === 401 && data.authUrl) {
+        // Redirect to Kroger for login
+        window.location.href = data.authUrl;
+      } else {
+        alert('Failed to push items to KS cart: ' + data.error);
+      }
+    } catch (err) {
+      alert('An error occurred while pushing to King Soopers cart.');
+    }
+  }
+
+  async function handleAmazonPush() {
+    alert('Amazon cart push is currently manual. Please use the Amazon app/website.');
+  }
+
+  if (loading) {
+    return (
+      <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-2xl)' }}>
+        <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)', animation: 'spin 2s linear infinite' }}>🛒</div>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Comparing Prices...</h1>
+        <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)' }}>
+          Searching King Soopers & Amazon for your items.
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-2xl)' }}>
+        <div style={{ fontSize: '3rem', color: 'var(--accent-red)', marginBottom: 'var(--space-md)' }}>⚠️</div>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Error Loading Comparison</h1>
+        <p style={{ color: 'var(--accent-red)', marginTop: 'var(--space-sm)' }}>{error}</p>
+        <button className="btn btn-primary" onClick={fetchComparison} style={{ marginTop: 'var(--space-md)' }}>Try Again</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container" style={{ paddingBottom: '120px' }}>
+      <header className="page-header" style={{ marginBottom: 'var(--space-xl)', paddingTop: '2.5rem' }}>
+        <div>
+          <h1 className="page-title">📊 Price Comparison</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Comparing King Soopers & Amazon for {results.length} items.
+          </p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+            💡 Note: Amazon pricing is currently unavailable. We're comparing King Soopers prices.
+          </p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+            Total Savings: ${summary?.totalSavings.toFixed(2)}
+          </div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Based on current best matches
+          </div>
+        </div>
+      </header>
+
+      {/* Results List */}
+      <div>
+        {results.map((result) => (
+          <ComparisonRow 
+            key={result.item.id} 
+            result={result} 
+            onPick={handlePick}
+          />
+        ))}
+      </div>
+
+      {/* Cart Actions */}
+      {summary && (
+        <CartActions 
+          summary={summary} 
+          onKrogerPush={handleKrogerPush} 
+          onAmazonPush={handleAmazonPush} 
+        />
+      )}
+
+      {/* Dashboard Footer / Home link */}
+      <footer style={{ marginTop: 'var(--space-2xl)', textAlign: 'center' }}>
+        <button className="btn btn-secondary" onClick={() => router.push('/')}>
+          ← Back to Shopping List
+        </button>
+      </footer>
+    </div>
+  );
+}

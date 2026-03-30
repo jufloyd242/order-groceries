@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { addItemsToCart, CartItemInput } from '@/lib/kroger/cart';
+import { getKrogerAccessToken } from '@/lib/kroger/token_manager';
+
+/**
+ * POST /api/kroger/cart
+ * Pushes items to the user's King Soopers / Kroger cart.
+ * Body: { items: [{ upc: string, quantity: number }] }
+ * Automatically handles user-level authentication via stored token and refresh.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const items: CartItemInput[] = body.items;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ success: false, error: 'No items to add.' }, { status: 400 });
+    }
+
+    // 1. Get access token from storage (with auto-refresh)
+    const token = await getKrogerAccessToken();
+
+    if (!token) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Kroger authentication required.', 
+        authUrl: '/api/kroger/auth/authorize' 
+      }, { status: 401 });
+    }
+
+    // 2. Add to cart via Kroger API
+    await addItemsToCart(token, items);
+
+    return NextResponse.json({
+      success: true,
+      addedCount: items.length,
+      message: `Successfully added ${items.length} item${items.length !== 1 ? 's' : ''} to your King Soopers cart.`
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Kroger cart addition error:', message);
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
+  }
+}
