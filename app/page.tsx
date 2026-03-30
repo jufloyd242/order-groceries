@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import { AddItemBar } from '../components/AddItemBar';
 import { ListItem } from '../components/ListItem';
@@ -21,6 +22,7 @@ interface PreferenceData {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [items, setItems] = useState<ListItemData[]>([]);
   const [preferences, setPreferences] = useState<PreferenceData[]>([]);
   const [bulkMode, setBulkMode] = useState(false);
@@ -175,6 +177,12 @@ export default function Home() {
           <button className="btn btn-secondary btn-icon" onClick={() => setBulkMode(!bulkMode)}>
             📋
           </button>
+          <button className="btn btn-secondary btn-icon" onClick={() => router.push('/preferences')}>
+            ⚙️
+          </button>
+          <button className="btn btn-secondary btn-icon" onClick={() => router.push('/settings')}>
+            🔧
+          </button>
         </div>
       </header>
 
@@ -197,6 +205,22 @@ export default function Home() {
 
       {/* Add Item Input */}
       <AddItemBar onAdd={addItems} bulkMode={bulkMode} setBulkMode={setBulkMode} />
+
+      {/* Search Button */}
+      <button
+        className="btn btn-accent btn-lg"
+        onClick={() => router.push('/search')}
+        style={{ 
+          width: '100%', 
+          marginTop: 'var(--space-lg)', 
+          padding: 'var(--space-md)',
+          backgroundColor: 'rgba(184, 217, 98, 0.15)',
+          border: '2px solid rgba(184, 217, 98, 0.3)',
+          color: '#b8d962'
+        }}
+      >
+        🔍 Search & Add Products
+      </button>
 
       {/* Shopping List */}
       {items.length > 0 && (
@@ -294,7 +318,7 @@ export default function Home() {
           zIndex: 10
         }}>
           <a href="/compare" className="btn btn-primary btn-lg shadow-lg" style={{ width: '100%', maxWidth: '400px', pointerEvents: 'auto', padding: '16px', fontSize: '1.1rem' }}>
-            🔍 Compare Prices ({items.length} item{items.length !== 1 ? 's' : ''})
+            🔍 Search Items in List ({items.length} item{items.length !== 1 ? 's' : ''})
           </a>
         </div>
       )}

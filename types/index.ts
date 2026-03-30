@@ -11,7 +11,7 @@ export interface ListItem {
   source: 'manual' | 'todoist';
   todoist_task_id: string | null;
   preference_id: string | null;
-  status: 'pending' | 'matched' | 'compared' | 'carted';
+  status: 'pending' | 'matched' | 'compared' | 'carted' | 'purchased';
   created_at: string;
 }
 

@@ -62,6 +62,7 @@ export async function searchProducts(
     'filter.term': query,
     'filter.locationId': locationId,
     'filter.limit': String(limit),
+    'filter.fulfillment': 'ais',  // Available In Store — locks results to locationId inventory
   });
 
   const res = await fetch(`${KROGER_API_BASE}/products?${params}`, {
@@ -69,6 +70,7 @@ export async function searchProducts(
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
     },
+    cache: 'no-store',  // Prevent stale cached responses
   });
 
   if (!res.ok) {
@@ -78,7 +80,10 @@ export async function searchProducts(
 
   const data: KrogerSearchResponse = await res.json();
 
-  return data.data.map((product) => mapKrogerProduct(product));
+  // Map and filter out products with no price at this location
+  return data.data
+    .map((product) => mapKrogerProduct(product))
+    .filter((p) => p.price > 0);
 }
 
 /**

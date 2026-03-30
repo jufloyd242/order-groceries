@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/lib/matching/normalize';
 
 /**
  * GET /api/list
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const newItems = body.items || [body];
 
+    // Build abbreviation map for normalization
+    const abbrevMap = buildAbbreviationMap(DEFAULT_ABBREVIATIONS);
+
     // Get existing to prevent duplicates
     const { data: existingData } = await supabase.from('list_items').select('raw_text');
     const existingTexts = existingData ? existingData.map(e => e.raw_text.toLowerCase()) : [];
@@ -55,8 +59,14 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Parse quantity, unit, and normalized name from raw text
+      const normalized = normalizeItem(trimmed, abbrevMap);
+
       itemsToInsert.push({
         raw_text: trimmed,
+        normalized_text: normalized.normalized_name,
+        quantity: normalized.quantity,
+        unit: normalized.unit,
         source: item.source || 'manual',
         todoist_task_id: item.todoist_task_id || null,
         status: 'pending',
@@ -87,6 +97,47 @@ export async function POST(request: NextRequest) {
       added: inserted?.length || 0,
       skipped: skipped.length,
       items: inserted || [],
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 400 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/list
+ * Update specific fields of a list item (e.g., quantity, status).
+ * Body: { id: "item-id", updates: { quantity: 3, status: "matched" } }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const body = await request.json();
+    const { id, updates } = body;
+
+    if (!id || !updates) {
+      return NextResponse.json(
+        { success: false, error: 'Missing id or updates' },
+        { status: 400 }
+      );
+    }
+
+    const { data: updated, error } = await supabase
+      .from('list_items')
+      .update(updates)
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({
+      success: true,
+      item: updated?.[0] || null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

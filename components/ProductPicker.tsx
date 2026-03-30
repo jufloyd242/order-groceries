@@ -9,12 +9,13 @@ interface ProductPickerProps {
   itemName: string;
   kroger: ProductMatch[];
   amazon: ProductMatch[];
-  onConfirm: (selected: ProductMatch, remember: boolean) => void;
+  onConfirm: (selected: ProductMatch, quantity: number, remember: boolean) => void;
   onCancel: () => void;
 }
 
 export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onCancel }: ProductPickerProps) {
   const [selected, setSelected] = useState<ProductMatch | null>(null);
+  const [qty, setQty] = useState(1);
   const [remember, setRemember] = useState(true);
 
   function handleSelect(product: ProductMatch) {
@@ -23,7 +24,7 @@ export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onC
 
   function handleConfirm() {
     if (selected) {
-      onConfirm(selected, remember);
+      onConfirm(selected, qty, remember);
     }
   }
 
@@ -88,17 +89,42 @@ export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onC
 
       {/* Confirmation Area */}
       <footer style={{ marginTop: 'var(--space-2xl)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-xl)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <input 
-            type="checkbox" 
-            id="remember_choice" 
-            checked={remember} 
-            onChange={(e) => setRemember(e.target.checked)}
-            style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
-          />
-          <label htmlFor="remember_choice" style={{ fontSize: '1rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            Remember this choice for &quot;{itemName}&quot;
-          </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)' }}>
+          {/* Quantity stepper */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              className="btn btn-secondary btn-icon"
+              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              style={{ width: 36, height: 36, fontSize: '1rem' }}
+              tabIndex={-1}
+            >
+              −
+            </button>
+            <span style={{ minWidth: 32, textAlign: 'center', fontWeight: 600, fontSize: '1.1rem' }}>
+              {qty}
+            </span>
+            <button
+              className="btn btn-secondary btn-icon"
+              onClick={() => setQty((q) => q + 1)}
+              style={{ width: 36, height: 36, fontSize: '1rem' }}
+              tabIndex={-1}
+            >
+              +
+            </button>
+          </div>
+          {/* Remember checkbox */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            <input 
+              type="checkbox" 
+              id="remember_choice" 
+              checked={remember} 
+              onChange={(e) => setRemember(e.target.checked)}
+              style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }}
+            />
+            <label htmlFor="remember_choice" style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              Remember this choice
+            </label>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
           <button className="btn btn-secondary btn-lg" onClick={onCancel}>Cancel</button>
@@ -107,7 +133,7 @@ export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onC
             disabled={!selected}
             onClick={handleConfirm}
           >
-            ✅ Confirm Selection
+            ✅ Confirm Selection (×{qty})
           </button>
         </div>
       </footer>

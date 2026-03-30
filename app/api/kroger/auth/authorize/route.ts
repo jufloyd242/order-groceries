@@ -8,9 +8,9 @@ import { getAuthorizationUrl } from '@/lib/kroger/auth';
  */
 export async function GET(request: NextRequest) {
   try {
-    const protocol = request.headers.get('x-forwarded-proto') || 'http';
-    const host = request.headers.get('host') || 'localhost:3000';
-    const redirectUri = `${protocol}://${host}/api/kroger/auth/callback`;
+    // Use env variable so redirect_uri always matches what's registered in the Kroger Developer Portal
+    const redirectUri = process.env.KROGER_REDIRECT_URI
+      || `${request.headers.get('x-forwarded-proto') || 'http'}://${request.headers.get('host') || 'localhost:3000'}/api/kroger/auth/callback`;
 
     const authUrl = getAuthorizationUrl(redirectUri);
 

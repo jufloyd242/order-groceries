@@ -11,6 +11,8 @@ export default function PickItemPage() {
   const [amazonProducts, setAmazonProducts] = useState<ProductMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allDone, setAllDone] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const router = useRouter();
   const params = useParams();
@@ -25,6 +27,8 @@ export default function PickItemPage() {
   async function fetchData() {
     setLoading(true);
     setError(null);
+    setKrogerProducts([]);
+    setAmazonProducts([]);
     try {
       // 2. Fetch specific store location (Kroger) and Zip (Amazon)
       const [settingsRes, listRes] = await Promise.all([
@@ -54,7 +58,7 @@ export default function PickItemPage() {
       // 3. Parallel Search
       const query = targetItem.raw_text;
       const [kRes, aRes] = await Promise.all([
-        fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}`),
+        fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=10`),
         fetch(`/api/amazon/products?q=${encodeURIComponent(query)}&zip=${zipCode}`),
       ]);
 
@@ -70,33 +74,86 @@ export default function PickItemPage() {
     }
   }
 
-  async function handleConfirm(selected: ProductMatch, remember: boolean) {
+  async function handleConfirm(selected: ProductMatch, quantity: number, remember: boolean) {
     if (!item) return;
+    setConfirming(true);
 
     try {
-      // 1. Save preference if remember is checked
-      if (remember) {
+      // 1. Always save preference when coming from compare, or if remember is checked
+      if (remember || storeFilter) {
+        const prefBody: Record<string, any> = {
+          generic_name: item.raw_text,
+          display_name: selected.name,
+          preferred_brand: selected.brand,
+          search_override: selected.name,
+          preferred_store: null,
+        };
+
+        // Only update the UPC/ASIN for the store of the selected product
+        if (selected.store === 'kroger') {
+          prefBody.preferred_upc = selected.upc;
+        } else {
+          prefBody.preferred_asin = selected.asin;
+        }
+
         await fetch('/api/preferences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            generic_name: item.raw_text,
-            display_name: selected.name,
-            preferred_upc: selected.upc,
-            preferred_asin: selected.asin,
-            preferred_store: null, // Keep comparing both by default
-            preferred_brand: selected.brand,
-            search_override: selected.name,
-          }),
+          body: JSON.stringify(prefBody),
         });
       }
 
-      // 2. Update list item status to mapped (or let the comparison API handle it)
-      // For now, just go back to comparison
-      router.push('/compare');
+      // 2. Update the list item with the selected quantity and mark as matched
+      await fetch('/api/list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: item.id,
+          updates: { quantity, status: 'matched' },
+        }),
+      });
+
+      // 3. If we came from /compare (store filter param), go back there
+      if (storeFilter) {
+        router.push('/compare');
+        return;
+      }
+
+      // 4. Otherwise, check if any items are still unpicked
+      const listRes = await fetch('/api/list');
+      const listData = await listRes.json();
+      const unpickedItems = listData.items.filter((i: ListItem) => i.status === 'pending');
+
+      if (unpickedItems.length > 0) {
+        const nextItem = unpickedItems.find((i: ListItem) => i.id !== itemId) || unpickedItems[0];
+        router.push(`/pick/${nextItem.id}`);
+      } else {
+        setAllDone(true);
+      }
     } catch (err) {
-      alert('Failed to save preference.');
+      setConfirming(false);
+      alert('Failed to save preference or update quantity.');
     }
+  }
+
+  if (allDone) {
+    return (
+      <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-4xl)' }}>
+        <div className="glass-card" style={{ padding: 'var(--space-2xl)', maxWidth: 'sm', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: 600, marginBottom: 'var(--space-lg)' }}>✅ All products selected!</h1>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-2xl)', fontSize: '1.1rem' }}>
+            You've picked quantities for all items. Ready to compare prices.
+          </p>
+          <button 
+            className="btn btn-primary btn-lg" 
+            onClick={() => router.push('/compare')}
+            style={{ width: '100%' }}
+          >
+            Go to Price Comparison →
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
@@ -118,7 +175,7 @@ export default function PickItemPage() {
   }
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
+    <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)', opacity: confirming ? 0.6 : 1, pointerEvents: confirming ? 'none' : 'auto' }}>
       <ProductPicker 
         itemId={itemId}
         itemName={item.raw_text}

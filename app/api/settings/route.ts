@@ -18,6 +18,14 @@ export async function GET() {
       return acc;
     }, {});
 
+    // Fill in environment variable defaults if not set in database
+    if (!settingsObj.kroger_location_id && process.env.KROGER_DEFAULT_LOCATION_ID) {
+      settingsObj.kroger_location_id = process.env.KROGER_DEFAULT_LOCATION_ID;
+    }
+    if (!settingsObj.default_zip_code && process.env.DEFAULT_ZIP_CODE) {
+      settingsObj.default_zip_code = process.env.DEFAULT_ZIP_CODE;
+    }
+
     return NextResponse.json({
       success: true,
       settings: settingsObj as AppSettings,

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
     const locationId = searchParams.get('locationId');
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
 
     if (!query) {
       return NextResponse.json(
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const products = await searchProducts(query, locationId);
+    const products = await searchProducts(query, locationId, limit);
 
     return NextResponse.json({
       success: true,

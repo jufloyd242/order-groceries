@@ -11,7 +11,8 @@ interface ComparisonRowProps {
 export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
   const { item, selected_kroger, selected_amazon, winner, savings } = result;
 
-  const krogerPrice = selected_kroger ? (selected_kroger.promo_price ?? selected_kroger.price) : null;
+  // Treat falsy prices (0, undefined) as unavailable
+  const krogerPrice = selected_kroger ? ((selected_kroger.promo_price ?? selected_kroger.price) || null) : null;
   // Treat $0 as unavailable (SerpApi free tier limitation)
   const amazonPrice = selected_amazon ? ((selected_amazon.promo_price ?? selected_amazon.price) || null) : null;
 

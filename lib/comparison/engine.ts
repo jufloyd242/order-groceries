@@ -72,14 +72,29 @@ export function calculatePricePerUnit(
 /**
  * Compare prices between Kroger and Amazon for a single item.
  * Selects the best match from each store and determines the winner.
+ * If a preference with preferred_upc/preferred_asin exists, use that product.
  */
 export function compareItem(
   item: ListItem,
   krogerMatches: ProductMatch[],
-  amazonMatches: ProductMatch[]
+  amazonMatches: ProductMatch[],
+  preference?: any
 ): ComparisonResult {
-  const bestKroger = krogerMatches.length > 0 ? krogerMatches[0] : null;
-  const bestAmazon = amazonMatches.length > 0 ? amazonMatches[0] : null;
+  // If there's a saved preference with a UPC/ASIN, find that product in the results
+  let bestKroger: ProductMatch | null = null;
+  let bestAmazon: ProductMatch | null = null;
+
+  if (preference?.preferred_upc) {
+    bestKroger = krogerMatches.find((p) => p.upc === preference.preferred_upc) || krogerMatches[0] || null;
+  } else {
+    bestKroger = krogerMatches.length > 0 ? krogerMatches[0] : null;
+  }
+
+  if (preference?.preferred_asin) {
+    bestAmazon = amazonMatches.find((p) => p.asin === preference.preferred_asin) || amazonMatches[0] || null;
+  } else {
+    bestAmazon = amazonMatches.length > 0 ? amazonMatches[0] : null;
+  }
 
   // Calculate effective prices (use promo price if available)
   // Treat $0 prices as unavailable (SerpApi free tier limitation)

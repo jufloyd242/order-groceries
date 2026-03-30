@@ -17,9 +17,14 @@ export function AddItemBar({ onAdd, bulkMode, setBulkMode }: AddItemBarProps) {
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onAdd([inputValue]);
-      setInputValue('');
+      submitItem();
     }
+  }
+
+  function submitItem() {
+    if (!inputValue.trim()) return;
+    onAdd([inputValue.trim()]);
+    setInputValue('');
   }
 
   function handleBulkAdd() {
@@ -64,10 +69,7 @@ export function AddItemBar({ onAdd, bulkMode, setBulkMode }: AddItemBarProps) {
           />
           <button
             className="btn btn-primary btn-icon"
-            onClick={() => {
-              onAdd([inputValue]);
-              setInputValue('');
-            }}
+            onClick={submitItem}
             disabled={!inputValue.trim()}
             style={{ fontSize: '1.4rem', flexShrink: 0 }}
           >

@@ -6,6 +6,8 @@ import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
 import { CartActions } from '@/components/CartActions';
 
+const CACHE_KEY = 'sgo_comparison_cache';
+
 export default function ComparePage() {
   const [results, setResults] = useState<ComparisonResult[]>([]);
   const [summary, setSummary] = useState<ComparisonSummary | null>(null);
@@ -14,6 +16,16 @@ export default function ComparePage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Restore cached results immediately so the page isn't blank while fetching
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { results: cachedResults, summary: cachedSummary } = JSON.parse(cached);
+        setResults(cachedResults);
+        setSummary(cachedSummary);
+        setLoading(false);
+      }
+    } catch (_) {}
     fetchComparison();
   }, []);
 
@@ -24,8 +36,27 @@ export default function ComparePage() {
       const res = await fetch('/api/compare');
       const data = await res.json();
       if (data.success) {
-        setResults(data.results);
-        setSummary(data.summary);
+        // Filter out purchased items
+        const filtered = data.results.filter((r: ComparisonResult) => r.item.status !== 'purchased');
+        
+        // Recalculate summary for filtered results
+        const summary = {
+          totalItems: filtered.length,
+          krogerWins: filtered.filter((r: ComparisonResult) => r.winner === 'kroger').length,
+          amazonWins: filtered.filter((r: ComparisonResult) => r.winner === 'amazon').length,
+          ties: filtered.filter((r: ComparisonResult) => r.winner === 'tie').length,
+          krogerCartTotal: filtered.reduce((sum: number, r: ComparisonResult) => sum + (r.selected_kroger?.price ?? 0) * (r.item.quantity ?? 1), 0),
+          amazonCartTotal: filtered.reduce((sum: number, r: ComparisonResult) => sum + (r.selected_amazon?.price ?? 0) * (r.item.quantity ?? 1), 0),
+          totalSavings: filtered.reduce((sum: number, r: ComparisonResult) => sum + (r.savings ?? 0), 0),
+          unmappedCount: filtered.filter((r: ComparisonResult) => r.item.status === 'pending').length,
+        };
+        
+        setResults(filtered);
+        setSummary(summary);
+        // Cache results for instant restore when navigating back
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ results: filtered, summary: summary }));
+        } catch (_) {}
       } else {
         setError(data.error || 'Failed to fetch comparison');
       }
@@ -37,6 +68,8 @@ export default function ComparePage() {
   }
 
   function handlePick(itemId: string, store: 'kroger' | 'amazon') {
+    // Clear cache so comparison re-fetches with updated preference
+    try { sessionStorage.removeItem(CACHE_KEY); } catch (_) {}
     router.push(`/pick/${itemId}?store=${store}`);
   }
 
@@ -44,7 +77,7 @@ export default function ComparePage() {
     const winners = results.filter((r) => r.winner === 'kroger' && r.selected_kroger?.upc);
     const itemsToPush = winners.map((w) => ({
       upc: w.selected_kroger!.upc!,
-      quantity: 1, // Default to 1 for now
+      quantity: w.item.quantity ?? 1,
     }));
 
     if (itemsToPush.length === 0) {

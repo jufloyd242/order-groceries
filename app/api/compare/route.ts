@@ -21,12 +21,12 @@ export async function GET() {
       return acc;
     }, {});
 
-    const locationId = settings.kroger_location_id;
-    const zipCode = settings.default_zip_code || '80516';
+    const locationId = settings.kroger_location_id || process.env.KROGER_DEFAULT_LOCATION_ID;
+    const zipCode = settings.default_zip_code || process.env.DEFAULT_ZIP_CODE || '80516';
 
     if (!locationId) {
       return NextResponse.json(
-        { success: false, error: 'Kroger Location ID not configured in settings.' },
+        { success: false, error: 'Kroger Location ID not configured in settings or environment.' },
         { status: 400 }
       );
     }
@@ -53,7 +53,7 @@ export async function GET() {
           // Fetch products from both stores in parallel
           const [krogerProducts, amazonProducts] = await Promise.all([
             searchKroger(query, locationId, 5).catch((err) => {
-              console.error(`Kroger search failed for "${query}":`, err);
+              console.error(`Kroger search failed for "${query}" at location "${locationId}":`, err);
               return [];
             }),
             searchAmazon(query, zipCode, 5).catch((err) => {
@@ -62,12 +62,16 @@ export async function GET() {
             }),
           ]);
 
+          if (krogerProducts.length === 0) {
+            console.log(`⚠️ Kroger search returned 0 results for "${query}" at location "${locationId}"`);
+          }
+
           // Score products with fuzzy matching
           const scoredKroger = scoreMatches(query, krogerProducts);
           const scoredAmazon = scoreMatches(query, amazonProducts);
 
-          // Perform comparison
-          return compareItem(resolved.listItem, scoredKroger, scoredAmazon);
+          // Perform comparison (pass preference so it can prioritize saved products)
+          return compareItem(resolved.listItem, scoredKroger, scoredAmazon, resolved.preference);
         } catch (err) {
           console.error(`Error comparing item "${item.raw_text}":`, err);
           return {
