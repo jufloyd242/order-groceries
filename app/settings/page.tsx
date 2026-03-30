@@ -109,6 +109,59 @@ export default function SettingsPage() {
         </button>
       </section>
 
+      {/* List Cleanup */}
+      <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>🗑️ Cart Cleanup</h2>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
+          When enabled, items are automatically removed from your list (and their Todoist tasks are completed) as soon as they are added to the shopping cart.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+          <input
+            type="checkbox"
+            id="auto_remove_on_cart"
+            checked={settings?.auto_remove_on_cart !== 'false'}
+            onChange={(e) =>
+              setSettings((prev) =>
+                prev ? { ...prev, auto_remove_on_cart: e.target.checked ? 'true' : 'false' } : null
+              )
+            }
+            style={{ width: '1.1rem', height: '1.1rem', cursor: 'pointer' }}
+          />
+          <label htmlFor="auto_remove_on_cart" style={{ fontSize: '0.95rem', cursor: 'pointer' }}>
+            Auto-remove items from list when added to cart
+          </label>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            Retained Items <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(never auto-removed)</span>
+          </label>
+          <input
+            type="text"
+            className="ui-input"
+            value={settings?.retained_items || ''}
+            onChange={(e) =>
+              setSettings((prev) => (prev ? { ...prev, retained_items: e.target.value } : null))
+            }
+            placeholder="e.g. olive oil, coffee, oats"
+            style={{ width: '100%' }}
+          />
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Comma-separated list of item names that should always stay on your grocery list even after being added to cart.
+          </p>
+        </div>
+
+        <button
+          className="btn btn-primary btn-lg"
+          style={{ marginTop: 'var(--space-xl)' }}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+      </section>
+
       {/* Preference Manager link (stretch) */}
       <section className="glass-card" style={{ padding: 'var(--space-md)', opacity: 0.6 }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 600 }}>Advanced Preference Manager</h2>

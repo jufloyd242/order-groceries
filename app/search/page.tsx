@@ -19,7 +19,20 @@ export default function SearchPage() {
   const [storeChoice, setStoreChoice] = useState<'kroger' | 'amazon' | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [autoRemove, setAutoRemove] = useState(true);
   const { addItem } = useCart();
+
+  // Fetch auto-remove setting on mount
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setAutoRemove(d.settings?.auto_remove_on_cart !== 'false');
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Auto-search if query in URL
   useEffect(() => {
@@ -86,15 +99,13 @@ export default function SearchPage() {
         addItem(product, 1);
       }
 
-      // Delete matching list items
-      try {
-        await fetch('/api/list/delete-by-query', {
+      // Delete matching list items (respects auto_remove_on_cart setting)
+      if (autoRemove) {
+        fetch('/api/list/delete-by-query', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: query.toLowerCase() }),
-        });
-      } catch (err) {
-        console.error('Error deleting list items:', err);
+        }).catch((err) => console.error('Error deleting list items:', err));
       }
 
       setSelectedIds(new Set());

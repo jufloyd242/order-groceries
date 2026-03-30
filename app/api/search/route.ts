@@ -32,13 +32,13 @@ export async function GET(request: NextRequest) {
 
     const trimmedQuery = query.trim();
 
-    // Search both stores in parallel
+    // Search both stores in parallel — fetch all available results for client-side pagination
     const [krogerProducts, amazonProducts] = await Promise.all([
-      searchKroger(trimmedQuery, locationId, 10).catch((err) => {
+      searchKroger(trimmedQuery, locationId, 50).catch((err) => {
         console.error(`Kroger search failed for "${trimmedQuery}":`, err);
         return [];
       }),
-      searchAmazon(trimmedQuery, zip, 10).catch((err) => {
+      searchAmazon(trimmedQuery, zip, 50).catch((err) => {
         console.error(`Amazon search failed for "${trimmedQuery}":`, err);
         return [];
       }),

@@ -80,27 +80,53 @@ export default function ComparePage() {
   async function handleKrogerPush() {
     const winners = results.filter((r) => r.selected_kroger?.upc);
     let added = 0;
+    const addedListItemIds: string[] = [];
     for (const r of winners) {
       if (r.selected_kroger) {
         addItem(r.selected_kroger, r.item.quantity ?? 1, r.item.id);
+        addedListItemIds.push(r.item.id);
         added++;
       }
     }
-    if (added > 0) setCartOpen(true);
-    else alert('No King Soopers items with UPCs to add.');
+    if (added > 0) {
+      setCartOpen(true);
+      // Fire-and-forget: clean up list items and Todoist tasks
+      if (addedListItemIds.length > 0) {
+        fetch('/api/list/cleanup-on-cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listItemIds: addedListItemIds }),
+        }).catch((err) => console.error('Cleanup-on-cart error:', err));
+      }
+    } else {
+      alert('No King Soopers items with UPCs to add.');
+    }
   }
 
   async function handleAmazonPush() {
     const winners = results.filter((r) => r.selected_amazon?.asin);
     let added = 0;
+    const addedListItemIds: string[] = [];
     for (const r of winners) {
       if (r.selected_amazon) {
         addItem(r.selected_amazon, r.item.quantity ?? 1, r.item.id);
+        addedListItemIds.push(r.item.id);
         added++;
       }
     }
-    if (added > 0) setCartOpen(true);
-    else alert('No Amazon items to add.');
+    if (added > 0) {
+      setCartOpen(true);
+      // Fire-and-forget: clean up list items and Todoist tasks
+      if (addedListItemIds.length > 0) {
+        fetch('/api/list/cleanup-on-cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listItemIds: addedListItemIds }),
+        }).catch((err) => console.error('Cleanup-on-cart error:', err));
+      }
+    } else {
+      alert('No Amazon items to add.');
+    }
   }
 
   if (loading) {

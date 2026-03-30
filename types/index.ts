@@ -139,6 +139,10 @@ export interface AppSettings {
   todoist_project_name: string;
   kroger_location_id: string;
   order_modality: 'DELIVERY' | 'PICKUP';
+  /** When true, adding to cart auto-removes from local list & completes Todoist task */
+  auto_remove_on_cart: 'true' | 'false';
+  /** Comma-separated generic_names to always retain (never auto-remove) */
+  retained_items: string;
 }
 
 // ─── Price History ────────────────────────────────────────────
