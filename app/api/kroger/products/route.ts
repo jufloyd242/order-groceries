@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q');
     const locationId = searchParams.get('locationId');
     const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const brand = searchParams.get('brand') || undefined;
 
     if (!query) {
       return NextResponse.json(
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const products = await searchProducts(query, locationId, limit);
+    const products = await searchProducts(query, locationId, limit, brand);
 
     return NextResponse.json({
       success: true,

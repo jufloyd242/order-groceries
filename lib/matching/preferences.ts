@@ -78,6 +78,7 @@ export function buildPreferenceFromSelection(
   selectedProduct: {
     name: string;
     brand?: string;
+    size?: string;
     store: 'kroger' | 'amazon';
     upc?: string;
     asin?: string;
@@ -91,8 +92,31 @@ export function buildPreferenceFromSelection(
     preferred_asin: selectedProduct.asin ?? null,
     preferred_store: null, // Compare both stores by default
     preferred_brand: selectedProduct.brand ?? null,
-    search_override: selectedProduct.name,
+    // Build strict search_override: brand + product name + size for precise API queries
+    search_override: buildStrictSearchQuery(selectedProduct.name, selectedProduct.brand, selectedProduct.size),
     last_kroger_price: selectedProduct.store === 'kroger' ? (selectedProduct.price ?? null) : null,
     last_amazon_price: selectedProduct.store === 'amazon' ? (selectedProduct.price ?? null) : null,
   };
+}
+
+/**
+ * Build a strict search query from product details.
+ * Avoids duplicating brand in the query if the name already starts with it.
+ * e.g., brand "Kroger", name "Kroger 2% Milk", size "1 gal" → "Kroger 2% Milk 1 gal"
+ */
+function buildStrictSearchQuery(name: string, brand?: string, size?: string): string {
+  const parts: string[] = [];
+
+  // Prepend brand if it's not already the start of the product name
+  if (brand && !name.toLowerCase().startsWith(brand.toLowerCase())) {
+    parts.push(brand);
+  }
+
+  parts.push(name);
+
+  if (size) {
+    parts.push(size);
+  }
+
+  return parts.join(' ').trim();
 }

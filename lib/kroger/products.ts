@@ -15,11 +15,13 @@ const KROGER_API_BASE = 'https://api.kroger.com/v1';
  * @param query - Search term (e.g., "milk", "toilet paper")
  * @param locationId - Kroger store location ID
  * @param limit - Max results (default 5)
+ * @param brand - Optional brand filter to narrow results (e.g., "Kroger", "Horizon")
  */
 export async function searchProducts(
   query: string,
   locationId: string,
-  limit: number = 5
+  limit: number = 5,
+  brand?: string
 ): Promise<ProductMatch[]> {
   const token = await getClientCredentialsToken();
 
@@ -29,6 +31,12 @@ export async function searchProducts(
     'filter.limit': String(limit),
     'filter.fulfillment': 'ais',  // Available In Store — locks results to locationId inventory
   });
+
+  // Add brand filter to narrow results and avoid category mismatches
+  // e.g., searching "apples" with brand filter avoids "Apple Scented Soap"
+  if (brand) {
+    params.set('filter.brand', brand);
+  }
 
   const res = await fetch(`${KROGER_API_BASE}/products?${params}`, {
     headers: {
@@ -54,6 +62,46 @@ export async function searchProducts(
       return result.success ? mapKrogerProduct(result.data) : null;
     })
     .filter((p): p is ProductMatch => p !== null && p.price > 0);
+}
+
+/**
+ * Fetch a specific Kroger product by its UPC.
+ * Bypasses search entirely for exact product matching.
+ * Returns the product if found and in stock, null otherwise.
+ */
+export async function getProductByUpc(
+  upc: string,
+  locationId: string
+): Promise<ProductMatch | null> {
+  const token = await getClientCredentialsToken();
+
+  const params = new URLSearchParams({
+    'filter.productId': upc,
+    'filter.locationId': locationId,
+    'filter.fulfillment': 'ais',
+  });
+
+  const res = await fetch(`${KROGER_API_BASE}/products?${params}`, {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) return null;
+
+  const raw = await res.json();
+  const parsed = KrogerSearchResponseSchema.safeParse(raw);
+  const rawProducts = parsed.success ? parsed.data.data : [];
+
+  if (rawProducts.length === 0) return null;
+
+  const result = KrogerProductSchema.safeParse(rawProducts[0]);
+  if (!result.success) return null;
+
+  const product = mapKrogerProduct(result.data);
+  return product.price > 0 ? product : null;
 }
 
 /**

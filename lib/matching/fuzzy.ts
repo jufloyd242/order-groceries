@@ -44,7 +44,7 @@ export function scoreMatches(
 export function findBestMatch(
   query: string,
   products: ProductMatch[],
-  minScore: number = 40
+  minScore: number = 50
 ): ProductMatch | null {
   const scored = scoreMatches(query, products);
   if (scored.length === 0) return null;

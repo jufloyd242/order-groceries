@@ -81,11 +81,18 @@ export default function PickItemPage() {
     try {
       // 1. Always save preference when coming from compare, or if remember is checked
       if (remember || storeFilter) {
+        // Build a strict search_override: brand + name + size for precise future searches
+        const searchParts = [selected.brand, selected.name, selected.size].filter(Boolean);
+        // Deduplicate brand from name (name often starts with brand)
+        const strictSearch = selected.brand && selected.name.toLowerCase().startsWith(selected.brand.toLowerCase())
+          ? [selected.name, selected.size].filter(Boolean).join(' ')
+          : searchParts.join(' ');
+
         const prefBody: Record<string, any> = {
           generic_name: item.raw_text,
           display_name: selected.name,
           preferred_brand: selected.brand,
-          search_override: selected.name,
+          search_override: strictSearch.trim(),
           preferred_store: null,
         };
 

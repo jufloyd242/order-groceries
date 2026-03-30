@@ -47,8 +47,9 @@ export function SearchResults({
     );
   }
 
-  const krogerAll = results.filter((r) => r.store === 'kroger');
-  const amazonAll = results.filter((r) => r.store === 'amazon');
+  const byName = (a: ProductMatch, b: ProductMatch) => a.name.localeCompare(b.name);
+  const krogerAll = results.filter((r) => r.store === 'kroger').sort(byName);
+  const amazonAll = results.filter((r) => r.store === 'amazon').sort(byName);
 
   const krogerTotalPages = Math.max(1, Math.ceil(krogerAll.length / PAGE_SIZE));
   const amazonTotalPages = Math.max(1, Math.ceil(amazonAll.length / PAGE_SIZE));
