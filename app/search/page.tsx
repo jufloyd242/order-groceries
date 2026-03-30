@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProductMatch } from '@/types';
 import { SearchResults } from '@/components/SearchResults';
+import { useCart } from '@/lib/cart/CartContext';
+import { CartDrawer } from '@/components/CartDrawer';
 
 export default function SearchPage() {
   const router = useRouter();
@@ -16,6 +18,8 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [storeChoice, setStoreChoice] = useState<'kroger' | 'amazon' | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const { addItem } = useCart();
 
   // Auto-search if query in URL
   useEffect(() => {
@@ -64,7 +68,6 @@ export default function SearchPage() {
       return;
     }
 
-    // Filter selected products by store
     const selectedProducts = results.filter((p) => {
       const key = `${p.store}-${p.id}`;
       return selectedIds.has(key) && p.store === store;
@@ -78,55 +81,24 @@ export default function SearchPage() {
     setAddingToCart(true);
 
     try {
-      if (store === 'kroger') {
-        // Bulk add to Kroger cart
-        const res = await fetch('/api/kroger/cart', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: selectedProducts.map((p) => ({
-              upc: p.upc,
-              quantity: 1,
-            })),
-          }),
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          // Delete list items matching the search query
-          try {
-            const deleteRes = await fetch('/api/list/delete-by-query', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                query: query.toLowerCase(),
-              }),
-            });
-
-            if (!deleteRes.ok) {
-              console.error('Failed to delete list items:', deleteRes.statusText);
-            }
-          } catch (err) {
-            console.error('Error deleting list items:', err);
-          }
-
-          alert(`✅ Added ${selectedProducts.length} item(s) to King Soopers cart! Removing from list...`);
-
-          // Redirect back home to see updated list
-          router.push('/');
-        } else if (res.status === 401 && data.authUrl) {
-          window.location.href = data.authUrl;
-        } else {
-          alert('Failed to add to cart: ' + data.error);
-        }
-      } else {
-        // Amazon: show link
-        alert('Amazon cart push coming soon. Please add items manually to Amazon.');
+      // Add each selected product to the unified cart
+      for (const product of selectedProducts) {
+        addItem(product, 1);
       }
-    } catch (err) {
-      alert('Error adding to cart');
-      console.error(err);
+
+      // Delete matching list items
+      try {
+        await fetch('/api/list/delete-by-query', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query.toLowerCase() }),
+        });
+      } catch (err) {
+        console.error('Error deleting list items:', err);
+      }
+
+      setSelectedIds(new Set());
+      setCartOpen(true);
     } finally {
       setAddingToCart(false);
     }
@@ -257,6 +229,8 @@ export default function SearchPage() {
           </div>
         </div>
       )}
+
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
 import { CartActions } from '@/components/CartActions';
+import { useCart } from '@/lib/cart/CartContext';
+import { CartDrawer } from '@/components/CartDrawer';
 
 const CACHE_KEY = 'sgo_comparison_cache';
 
@@ -13,6 +15,8 @@ export default function ComparePage() {
   const [summary, setSummary] = useState<ComparisonSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const { addItem } = useCart();
   const router = useRouter();
 
   useEffect(() => {
@@ -74,40 +78,29 @@ export default function ComparePage() {
   }
 
   async function handleKrogerPush() {
-    const winners = results.filter((r) => r.winner === 'kroger' && r.selected_kroger?.upc);
-    const itemsToPush = winners.map((w) => ({
-      upc: w.selected_kroger!.upc!,
-      quantity: w.item.quantity ?? 1,
-    }));
-
-    if (itemsToPush.length === 0) {
-      alert('No King Soopers items to add.');
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/kroger/cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: itemsToPush }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        alert(data.message);
-      } else if (res.status === 401 && data.authUrl) {
-        // Redirect to Kroger for login
-        window.location.href = data.authUrl;
-      } else {
-        alert('Failed to push items to KS cart: ' + data.error);
+    const winners = results.filter((r) => r.selected_kroger?.upc);
+    let added = 0;
+    for (const r of winners) {
+      if (r.selected_kroger) {
+        addItem(r.selected_kroger, r.item.quantity ?? 1, r.item.id);
+        added++;
       }
-    } catch (err) {
-      alert('An error occurred while pushing to King Soopers cart.');
     }
+    if (added > 0) setCartOpen(true);
+    else alert('No King Soopers items with UPCs to add.');
   }
 
   async function handleAmazonPush() {
-    alert('Amazon cart push is currently manual. Please use the Amazon app/website.');
+    const winners = results.filter((r) => r.selected_amazon?.asin);
+    let added = 0;
+    for (const r of winners) {
+      if (r.selected_amazon) {
+        addItem(r.selected_amazon, r.item.quantity ?? 1, r.item.id);
+        added++;
+      }
+    }
+    if (added > 0) setCartOpen(true);
+    else alert('No Amazon items to add.');
   }
 
   if (loading) {
@@ -181,6 +174,8 @@ export default function ComparePage() {
           ← Back to Shopping List
         </button>
       </footer>
+
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
 }

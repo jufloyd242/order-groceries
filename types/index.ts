@@ -180,3 +180,59 @@ export interface CartPushResult {
   items_failed: number;
   errors: string[];
 }
+
+// ─── Unified Shopping Cart ────────────────────────────────────
+
+/** Supported store identifiers — extend this union to add new stores */
+export type StoreId = 'kroger' | 'amazon';
+
+/** A single item in the unified cart */
+export interface CartItem {
+  /** Unique key: `${store}-${productId}` */
+  id: string;
+  store: StoreId;
+  name: string;
+  brand: string;
+  price: number;
+  quantity: number;
+  image_url: string | null;
+  size: string;
+  upc?: string;
+  asin?: string;
+  listItemId?: string;
+  addedAt: number;
+}
+
+/** Cart grouped by store for submission */
+export interface CartByStore {
+  kroger: CartItem[];
+  amazon: CartItem[];
+}
+
+/** Result of submitting one store's items */
+export interface StoreSubmitResult {
+  store: StoreId;
+  success: boolean;
+  itemsAdded: number;
+  itemsFailed: number;
+  errors: string[];
+  /** If auth is required (e.g. Kroger OAuth), provide redirect URL */
+  authUrl?: string;
+}
+
+/** Full cart submission result */
+export interface CartSubmitResult {
+  results: StoreSubmitResult[];
+  submittedIds: string[];
+}
+
+// ─── Store Service Interface ──────────────────────────────────
+
+/**
+ * Interface each store's cart service must implement.
+ * Adding Amazon later = implement this interface.
+ */
+export interface StoreCartService {
+  readonly storeId: StoreId;
+  submit(items: CartItem[]): Promise<StoreSubmitResult>;
+}

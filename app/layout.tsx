@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { CartProvider } from '@/lib/cart/CartContext';
+import { CartButton } from '@/components/CartButton';
 
 export const metadata: Metadata = {
   title: "Smart Grocery Optimizer",
@@ -14,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <CartProvider>
+          {children}
+          <CartButton />
+        </CartProvider>
       </body>
     </html>
   );
