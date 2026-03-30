@@ -1,28 +1,7 @@
 import { ProductMatch } from '@/types';
+import { SerpApiAmazonResultSchema, SerpApiResponseSchema, SerpApiAmazonResult } from './schemas';
 
 const SERPAPI_BASE = 'https://serpapi.com/search.json';
-
-interface SerpApiAmazonResult {
-  position: number;
-  title: string;
-  asin: string;
-  link: string;
-  price?: {
-    raw: string;
-    value: number;
-    currency: string;
-  };
-  rating?: number;
-  ratings_total?: number;
-  is_prime?: boolean;
-  thumbnail?: string;
-  delivery?: string;
-}
-
-interface SerpApiResponse {
-  organic_results?: SerpApiAmazonResult[];
-  error?: string;
-}
 
 /**
  * Search Amazon for products via SerpApi.
@@ -58,21 +37,33 @@ export async function searchAmazonProducts(
     throw new Error(`SerpApi request failed: ${res.status} ${body}`);
   }
 
-  const data: SerpApiResponse = await res.json();
+  const raw = await res.json();
+  const parsed = SerpApiResponseSchema.safeParse(raw);
 
-  if (data.error) {
-    throw new Error(`SerpApi error: ${data.error}`);
+  if (!parsed.success) {
+    throw new Error(`SerpApi response parse failed: ${parsed.error.message}`);
   }
 
-  const results = data.organic_results ?? [];
+  if (parsed.data.error) {
+    throw new Error(`SerpApi error: ${parsed.data.error}`);
+  }
 
-  return results.slice(0, limit).map((result) => mapAmazonProduct(result));
+  const results = parsed.data.organic_results ?? [];
+
+  return results
+    .slice(0, limit)
+    .map((unknown) => {
+      const result = SerpApiAmazonResultSchema.safeParse(unknown);
+      return result.success ? mapAmazonProduct(result.data) : null;
+    })
+    .filter((p): p is ProductMatch => p !== null && p.price > 0);
 }
 
 /**
  * Map a SerpApi Amazon result to our standardized ProductMatch format.
  */
 function mapAmazonProduct(result: SerpApiAmazonResult): ProductMatch {
+  // price.value already resolved by SerpApiPriceSchema transform (value or parsed from raw)
   const price = result.price?.value ?? 0;
 
   // Try to extract size from title (e.g., "Charmin Ultra Soft, 12 Mega Rolls")

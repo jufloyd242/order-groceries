@@ -1,48 +1,13 @@
 import { getClientCredentialsToken } from './auth';
 import { ProductMatch } from '@/types';
+import {
+  KrogerProductSchema,
+  KrogerSearchResponseSchema,
+  KrogerProduct,
+  extractKrogerPrice,
+} from './schemas';
 
 const KROGER_API_BASE = 'https://api.kroger.com/v1';
-
-interface KrogerProduct {
-  productId: string;
-  upc: string;
-  description: string;
-  brand: string;
-  items: Array<{
-    size: string;
-    price?: {
-      regular: number;
-      promo: number;
-    };
-    nationalPrice?: {
-      regular: number;
-      promo: number;
-    };
-    fulfillment?: {
-      curbside?: { price: number; promo?: number };
-      fip?: { price: number; promo?: number };
-      inStore?: { price: number; promo?: number };
-    };
-  }>;
-  images: Array<{
-    perspective: string;
-    sizes: Array<{
-      size: string;
-      url: string;
-    }>;
-  }>;
-}
-
-interface KrogerSearchResponse {
-  data: KrogerProduct[];
-  meta: {
-    pagination: {
-      start: number;
-      limit: number;
-      total: number;
-    };
-  };
-}
 
 /**
  * Search for products at a specific King Soopers location.
@@ -78,12 +43,17 @@ export async function searchProducts(
     throw new Error(`Kroger product search failed: ${res.status} ${body}`);
   }
 
-  const data: KrogerSearchResponse = await res.json();
+  const raw = await res.json();
+  const parsed = KrogerSearchResponseSchema.safeParse(raw);
+  const rawProducts = parsed.success ? parsed.data.data : [];
 
   // Map and filter out products with no price at this location
-  return data.data
-    .map((product) => mapKrogerProduct(product))
-    .filter((p) => p.price > 0);
+  return rawProducts
+    .map((unknown) => {
+      const result = KrogerProductSchema.safeParse(unknown);
+      return result.success ? mapKrogerProduct(result.data) : null;
+    })
+    .filter((p): p is ProductMatch => p !== null && p.price > 0);
 }
 
 /**
@@ -140,24 +110,11 @@ export async function searchLocations(
 }
 
 /**
- * Map a raw Kroger API product to our standardized ProductMatch format.
+ * Map a Zod-validated Kroger product to our standardized ProductMatch format.
  */
 function mapKrogerProduct(product: KrogerProduct): ProductMatch {
   const item = product.items?.[0];
-  
-  // Try to find the most specific price possible
-  let price = item?.price?.regular ?? item?.nationalPrice?.regular ?? 0;
-  let promoPrice = item?.price?.promo ?? item?.nationalPrice?.promo ?? null;
-
-  // If regular price is 0, check fulfillment types (common in cert/specific stores)
-  if (price === 0 && item?.fulfillment) {
-    const f = item.fulfillment;
-    const bestF = f.curbside || f.inStore || f.fip;
-    if (bestF) {
-      price = bestF.price;
-      promoPrice = bestF.promo ?? null;
-    }
-  }
+  const { price, promoPrice } = extractKrogerPrice(item);
 
   const size = item?.size ?? '';
 
@@ -185,7 +142,7 @@ function mapKrogerProduct(product: KrogerProduct): ProductMatch {
     name: product.description,
     brand: product.brand ?? '',
     price,
-    promo_price: promoPrice && promoPrice > 0 && promoPrice < price ? promoPrice : null,
+    promo_price: promoPrice,
     size,
     unit: sizeMatch?.[2] ?? '',
     price_per_unit: Math.round(pricePerUnit * 100) / 100,

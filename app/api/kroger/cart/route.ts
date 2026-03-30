@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addItemsToCart, CartItemInput } from '@/lib/kroger/cart';
-import { getKrogerAccessToken } from '@/lib/kroger/token_manager';
+import { getKrogerAccessToken, KrogerAuthExpiredError } from '@/lib/kroger/token_manager';
 
 /**
  * POST /api/kroger/cart
@@ -37,6 +37,12 @@ export async function POST(request: NextRequest) {
       message: `Successfully added ${items.length} item${items.length !== 1 ? 's' : ''} to your King Soopers cart.`
     });
   } catch (error) {
+    if (error instanceof KrogerAuthExpiredError) {
+      return NextResponse.json(
+        { success: false, error: error.message, authUrl: '/api/kroger/auth/authorize' },
+        { status: 401 }
+      );
+    }
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Kroger cart addition error:', message);
     return NextResponse.json(

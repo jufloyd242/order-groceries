@@ -9,6 +9,17 @@ interface KrogerAuthData {
 }
 
 /**
+ * Thrown when Kroger refresh token is revoked or expired.
+ * Callers should redirect the user through the OAuth flow.
+ */
+export class KrogerAuthExpiredError extends Error {
+  constructor() {
+    super('Kroger session expired — re-authentication required.');
+    this.name = 'KrogerAuthExpiredError';
+  }
+}
+
+/**
  * Get the current user-level Kroger access token.
  * Refreshes it automatically if expired using the refresh token.
  */
@@ -33,10 +44,11 @@ export async function getKrogerAccessToken(): Promise<string | null> {
 
     // Attempt refresh
     const refreshed = await refreshToken(authData.refresh_token);
-    if (!refreshed) return null;
+    if (!refreshed) throw new KrogerAuthExpiredError();
 
     return refreshed.access_token;
   } catch (err) {
+    if (err instanceof KrogerAuthExpiredError) throw err;
     console.error('Failed to parse or refresh Kroger auth:', err);
     return null;
   }
@@ -88,7 +100,11 @@ async function refreshToken(refreshTokenStr: string): Promise<KrogerAuthData | n
       }).toString(),
     });
 
-    if (!res.ok) throw new Error(`Refresh failed: ${res.status}`);
+    if (!res.ok) {
+      // 401 = revoked refresh token; throw typed error so callers can redirect to OAuth
+      if (res.status === 401) throw new KrogerAuthExpiredError();
+      throw new Error(`Refresh failed: ${res.status}`);
+    }
 
     const data = await res.json();
     const updated: KrogerAuthData = {
