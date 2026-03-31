@@ -27,6 +27,13 @@ export default function Home() {
     fetchItems();
   }, []);
 
+  // Re-fetch when cart removes/clears revert list item statuses
+  useEffect(() => {
+    const handler = () => fetchItems();
+    window.addEventListener('list-status-changed', handler);
+    return () => window.removeEventListener('list-status-changed', handler);
+  }, []);
+
   async function fetchItems() {
     try {
       const res = await fetch('/api/list');

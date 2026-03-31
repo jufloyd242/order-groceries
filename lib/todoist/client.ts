@@ -47,6 +47,14 @@ export async function closeTask(taskId: string): Promise<void> {
 }
 
 /**
+ * Reopen (uncomplete) a task in Todoist, e.g. when an item is removed from the cart.
+ */
+export async function reopenTask(taskId: string): Promise<void> {
+  const api = getClient();
+  await api.reopenTask(taskId);
+}
+
+/**
  * High-level: Pull all grocery items from the configured Todoist project.
  * Returns the task contents as strings plus their Todoist task IDs.
  */

@@ -37,16 +37,29 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
         return;
       }
       if (result.submittedIds.length > 0) {
-        const listItemIds = krogerItems
-          .filter((i) => result.submittedIds.includes(i.id) && i.listItemId)
+        const submittedSet = new Set(result.submittedIds);
+        const submittedListItemIds = krogerItems
+          .filter((i) => submittedSet.has(i.id) && i.listItemId)
           .map((i) => i.listItemId!);
         removeItems(result.submittedIds);
-        if (listItemIds.length > 0) {
+        if (submittedListItemIds.length > 0) {
           fetch('/api/list/cleanup-on-cart', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listItemIds }),
+            body: JSON.stringify({ listItemIds: submittedListItemIds }),
           }).catch((err) => console.error('Cleanup error:', err));
+        }
+        // Revert list items for any cart items that FAILED submission
+        const failedListItemIds = krogerItems
+          .filter((i) => !submittedSet.has(i.id) && i.listItemId)
+          .map((i) => i.listItemId!);
+        if (failedListItemIds.length > 0) {
+          fetch('/api/list/revert-cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listItemIds: failedListItemIds }),
+          }).catch((err) => console.error('Revert error:', err));
+          window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
       }
       const r = result.results.find((r) => r.store === 'kroger');
