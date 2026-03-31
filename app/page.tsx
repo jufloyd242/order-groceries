@@ -3,17 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AddItemBar } from '../components/AddItemBar';
-import { ListItem } from '../components/ListItem';
+import { ListItem, ListItemData } from '../components/ListItem';
 import { SyncButton } from '../components/SyncButton';
 import { BatchActionBar } from '../components/BatchActionBar';
-
-interface ListItemData {
-  id: string;
-  raw_text: string;
-  source: 'manual' | 'todoist';
-  status: string;
-  quantity?: number | null;
-}
 
 export default function Home() {
   const router = useRouter();
@@ -22,6 +14,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [showPurchased, setShowPurchased] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -46,37 +39,12 @@ export default function Home() {
     }
   }
 
-  async function addItems(texts: string[], saveToTodoist = false) {
+  async function addItems(texts: string[]) {
     const normalized = texts.map((t) => t.trim()).filter((t) => t.length > 0);
     if (normalized.length === 0) return;
 
     try {
-      let itemsToAdd: Array<{ raw_text: string; source: 'manual' | 'todoist'; todoist_task_id?: string }>;
-
-      if (saveToTodoist) {
-        itemsToAdd = await Promise.all(
-          normalized.map(async (text) => {
-            try {
-              const res = await fetch('/api/todoist/task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: text }),
-              });
-              const data = await res.json();
-              return {
-                raw_text: text,
-                source: 'todoist' as const,
-                todoist_task_id: data.success ? data.todoist_task_id : undefined,
-              };
-            } catch {
-              return { raw_text: text, source: 'manual' as const };
-            }
-          })
-        );
-      } else {
-        itemsToAdd = normalized.map((t) => ({ raw_text: t, source: 'manual' as const }));
-      }
-
+      const itemsToAdd = normalized.map((t) => ({ raw_text: t, source: 'manual' as const }));
       const res = await fetch('/api/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,14 +74,49 @@ export default function Home() {
 
   async function clearList() {
     try {
+      // Only delete non-persistent, non-purchased active items
+      const idsToDelete = items
+        .filter((i) => !i.persistent && i.status !== 'purchased')
+        .map((i) => i.id);
+      if (idsToDelete.length === 0) return;
       await fetch('/api/list', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clear: true }),
+        body: JSON.stringify({ ids: idsToDelete }),
       });
-      setItems([]);
+      setItems((prev) => prev.filter((i) => i.persistent || i.status === 'purchased'));
     } catch (err) {
       console.error('Failed to clear list:', err);
+    }
+  }
+
+  function togglePersistent(id: string) {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    const newValue = !item.persistent;
+    // Optimistic update
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, persistent: newValue } : i));
+    fetch('/api/list', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, updates: { persistent: newValue } }),
+    }).catch((err) => {
+      console.error('Failed to toggle persistent:', err);
+      // Roll back
+      setItems((prev) => prev.map((i) => i.id === id ? { ...i, persistent: !newValue } : i));
+    });
+  }
+
+  async function reorderItem(id: string) {
+    try {
+      await fetch('/api/list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, updates: { status: 'pending' } }),
+      });
+      setItems((prev) => prev.map((i) => i.id === id ? { ...i, status: 'pending' } : i));
+    } catch (err) {
+      console.error('Failed to reorder item:', err);
     }
   }
 
@@ -160,8 +163,11 @@ export default function Home() {
     router.push(`/search?itemId=${itemId}&q=${encodeURIComponent(query)}`);
   }
 
-  const selectableIds = items
-    .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
+  const activeItems = items.filter((i) => i.status !== 'purchased');
+  const purchasedItems = items.filter((i) => i.status === 'purchased');
+
+  const selectableIds = activeItems
+    .filter((i) => i.status !== 'carted')
     .map((i) => i.id);
 
   const allSelected =
@@ -185,15 +191,15 @@ export default function Home() {
   }
 
   function handleBatchSearch(stores: ('kroger' | 'amazon')[]) {
-    const selected = items.filter((i) => selectedIds.has(i.id));
+    const selected = activeItems.filter((i) => selectedIds.has(i.id));
     if (selected.length === 0) return;
     const ids = selected.map((i) => i.id).join(',');
     const storeParam = stores.join(',');
     router.push(`/search?mode=batch&ids=${encodeURIComponent(ids)}&stores=${encodeURIComponent(storeParam)}`);
   }
 
-  const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'matched').length;
-  const cartedCount = items.filter((i) => i.status === 'carted' || i.status === 'purchased').length;
+  const pendingCount = activeItems.filter((i) => i.status === 'pending' || i.status === 'matched').length;
+  const cartedCount = activeItems.filter((i) => i.status === 'carted').length;
 
   return (
     <div className="container" style={{ paddingBottom: '120px' }}>
@@ -244,7 +250,7 @@ export default function Home() {
       <AddItemBar onAdd={addItems} bulkMode={bulkMode} setBulkMode={setBulkMode} />
 
       {/* Shopping List */}
-      {items.length > 0 && (
+      {activeItems.length > 0 && (
         <div className="glass-card" style={{ marginTop: 'var(--space-lg)' }}>
           <div
             style={{
@@ -265,20 +271,31 @@ export default function Home() {
                 />
               TODAY&apos;S LIST
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                {items.length} item{items.length !== 1 ? 's' : ''}
+                {activeItems.length} item{activeItems.length !== 1 ? 's' : ''}
               </span>
             </h2>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '4px 12px' }}
-              onClick={clearList}
-            >
-              Clear All
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {purchasedItems.length > 0 && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '4px 12px', color: showPurchased ? '#84cc16' : undefined }}
+                  onClick={() => setShowPurchased((v) => !v)}
+                >
+                  {showPurchased ? '▲' : '▼'} Purchased ({purchasedItems.length})
+                </button>
+              )}
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+                onClick={clearList}
+              >
+                Clear All
+              </button>
+            </div>
           </div>
 
           <div>
-            {items.map((item, index) => (
+            {activeItems.map((item, index) => (
               <ListItem
                 key={item.id}
                 item={item}
@@ -286,14 +303,54 @@ export default function Home() {
                 onRemove={removeItem}
                 selected={selectedIds.has(item.id)}
                 onToggle={toggleSelect}
+                onTogglePersistent={togglePersistent}
               />
             ))}
           </div>
+
+          {/* Purchased items (collapsible) */}
+          {showPurchased && purchasedItems.length > 0 && (
+            <div style={{ marginTop: 'var(--space-md)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 'var(--space-md)' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 'var(--space-sm)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Previously purchased
+              </p>
+              {purchasedItems.map((item) => (
+                <div
+                  key={item.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', opacity: 0.65 }}
+                >
+                  <div style={{ flex: 1, fontSize: '0.9rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>
+                    {item.raw_text}
+                    {item.preference && (
+                      <span style={{ marginLeft: 8, fontSize: '0.72rem', textDecoration: 'none', color: '#4ade80' }}>
+                        · {item.preference.display_name}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.75rem', padding: '3px 10px', flexShrink: 0 }}
+                    onClick={() => reorderItem(item.id)}
+                  >
+                    ↩ Reorder
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-icon"
+                    style={{ fontSize: '0.9rem', width: 28, height: 28, flexShrink: 0 }}
+                    onClick={() => removeItem(item.id)}
+                    aria-label="Remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Empty state */}
-      {items.length === 0 && (
+      {activeItems.length === 0 && purchasedItems.length === 0 && (
         <div
           className="glass-card animate-fade-in"
           style={{

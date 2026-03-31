@@ -1,11 +1,14 @@
 'use client';
 
-interface ListItemData {
+export interface ListItemData {
   id: string;
   raw_text: string;
+  normalized_text?: string | null;
   source: 'manual' | 'todoist';
   status: string;
   quantity?: number | null;
+  persistent?: boolean;
+  preference?: { display_name: string } | null;
 }
 
 interface ListItemProps {
@@ -14,10 +17,16 @@ interface ListItemProps {
   onRemove: (id: string) => void;
   selected: boolean;
   onToggle: (id: string) => void;
+  onTogglePersistent: (id: string) => void;
 }
 
-export function ListItem({ item, index, onRemove, selected, onToggle }: ListItemProps) {
-  const isCarted = item.status === 'carted' || item.status === 'purchased';
+export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePersistent }: ListItemProps) {
+  const isCarted = item.status === 'carted';
+  const isPurchased = item.status === 'purchased';
+  const isLocked = isCarted || isPurchased;
+
+  const searchQuery = encodeURIComponent(item.normalized_text || item.raw_text);
+
   return (
     <div
       className="list-item animate-fade-in"
@@ -26,28 +35,29 @@ export function ListItem({ item, index, onRemove, selected, onToggle }: ListItem
       {/* Checkbox */}
       <input
         type="checkbox"
-        checked={isCarted ? true : selected}
-        disabled={isCarted}
-        onChange={() => !isCarted && onToggle(item.id)}
+        checked={isLocked ? true : selected}
+        disabled={isLocked}
+        onChange={() => !isLocked && onToggle(item.id)}
         style={{
           width: 18,
           height: 18,
           flexShrink: 0,
-          accentColor: isCarted ? '#22c55e' : '#84cc16',
-          cursor: isCarted ? 'default' : 'pointer',
-          opacity: isCarted ? 0.5 : 1,
+          accentColor: isLocked ? '#22c55e' : '#84cc16',
+          cursor: isLocked ? 'default' : 'pointer',
+          opacity: isLocked ? 0.5 : 1,
         }}
       />
 
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Item name row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <div
             style={{
               fontWeight: 600,
               fontSize: '1.05rem',
               letterSpacing: '-0.01em',
-              textDecoration: isCarted ? 'line-through' : 'none',
-              opacity: isCarted ? 0.5 : 1,
+              textDecoration: isLocked ? 'line-through' : 'none',
+              opacity: isLocked ? 0.5 : 1,
             }}
           >
             {item.raw_text}
@@ -58,21 +68,68 @@ export function ListItem({ item, index, onRemove, selected, onToggle }: ListItem
             </span>
           )}
           {isCarted && (
-            <span
-              className="badge"
-              style={{ fontSize: '0.75rem', backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' }}
-            >
+            <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' }}>
               ✅ In Cart
             </span>
           )}
+          {isPurchased && (
+            <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }}>
+              Purchased
+            </span>
+          )}
         </div>
-        {!isCarted && item.source === 'todoist' && (
-          <span className="badge badge-blue" style={{ marginTop: 4, fontSize: '0.7rem' }}>
-            from Todoist
-          </span>
+
+        {/* Preference mapping sub-text (only for active items) */}
+        {!isLocked && (
+          <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {item.preference ? (
+              <>
+                <span style={{ fontSize: '0.72rem', color: '#4ade80', opacity: 0.85 }}>
+                  📦 {item.preference.display_name}
+                </span>
+                <a
+                  href={`/search?itemId=${item.id}&q=${searchQuery}`}
+                  title="Update preference"
+                  style={{ fontSize: '0.68rem', color: '#84cc16', textDecoration: 'none', lineHeight: 1 }}
+                >
+                  ✏️
+                </a>
+              </>
+            ) : (
+              <span style={{ fontSize: '0.72rem', color: '#f59e0b', opacity: 0.7 }}>
+                ⚠️ No preference saved
+              </span>
+            )}
+            {!isLocked && item.source === 'todoist' && (
+              <span className="badge badge-blue" style={{ fontSize: '0.68rem' }}>
+                Todoist
+              </span>
+            )}
+          </div>
         )}
       </div>
 
+      {/* Persistent pin toggle */}
+      <button
+        onClick={() => onTogglePersistent(item.id)}
+        title={item.persistent ? 'Pinned — survives Clear All (click to unpin)' : 'Pin to keep through Clear All'}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: item.persistent ? '#84cc16' : '#334155',
+          fontSize: '0.95rem',
+          cursor: 'pointer',
+          padding: '4px',
+          flexShrink: 0,
+          lineHeight: 1,
+          transition: 'color 0.15s',
+        }}
+        aria-label={item.persistent ? 'Unpin item' : 'Pin item'}
+      >
+        📌
+      </button>
+
+      {/* Remove button */}
       <button
         className="btn btn-secondary btn-icon"
         style={{ fontSize: '0.9rem', width: 32, height: 32, flexShrink: 0 }}

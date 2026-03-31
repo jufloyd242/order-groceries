@@ -8,20 +8,36 @@ import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/li
  */
 export async function GET() {
   const supabase = await createClient();
-  
-  const { data: items, error } = await supabase
-    .from('list_items')
-    .select('*')
-    .order('created_at', { ascending: true }); // old items at top, like a list
+
+  const [{ data: items, error }, { data: prefs }] = await Promise.all([
+    supabase.from('list_items').select('*').order('created_at', { ascending: true }),
+    supabase.from('product_preferences').select('generic_name, display_name'),
+  ]);
 
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
+  // Build a lookup map: generic_name → display_name
+  const prefMap = new Map<string, string>();
+  for (const p of (prefs || [])) {
+    prefMap.set(p.generic_name.toLowerCase().trim(), p.display_name);
+  }
+
+  // Enrich each item with its matched product preference
+  const enrichedItems = (items || []).map((item) => {
+    const key = (item.normalized_text || item.raw_text).toLowerCase().trim();
+    const displayName = prefMap.get(key) ?? null;
+    return {
+      ...item,
+      preference: displayName ? { display_name: displayName } : null,
+    };
+  });
+
   return NextResponse.json({
     success: true,
-    count: items?.length || 0,
-    items: items || [],
+    count: enrichedItems.length,
+    items: enrichedItems,
   });
 }
 
@@ -39,8 +55,12 @@ export async function POST(request: NextRequest) {
     // Build abbreviation map for normalization
     const abbrevMap = buildAbbreviationMap(DEFAULT_ABBREVIATIONS);
 
-    // Get existing to prevent duplicates
-    const { data: existingData } = await supabase.from('list_items').select('raw_text');
+    // Get existing non-purchased items to prevent duplicates.
+    // Purchased items are excluded so re-adding them creates a fresh row.
+    const { data: existingData } = await supabase
+      .from('list_items')
+      .select('raw_text')
+      .neq('status', 'purchased');
     const existingTexts = existingData ? existingData.map(e => e.raw_text.toLowerCase()) : [];
 
     const itemsToInsert = [];

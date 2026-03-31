@@ -48,6 +48,8 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ listItemIds: submittedListItemIds }),
           }).catch((err) => console.error('Cleanup error:', err));
+          // Notify home page that items became 'purchased'
+          window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
         // Revert list items for any cart items that FAILED submission
         const failedListItemIds = krogerItems

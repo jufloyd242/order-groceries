@@ -4,14 +4,13 @@ import { useState, useRef } from 'react';
 import styles from '../app/page.module.css';
 
 interface AddItemBarProps {
-  onAdd: (items: string[], saveToTodoist: boolean) => void;
+  onAdd: (items: string[]) => void;
   bulkMode: boolean;
   setBulkMode: (mode: boolean) => void;
 }
 
 export function AddItemBar({ onAdd, bulkMode, setBulkMode }: AddItemBarProps) {
   const [inputValue, setInputValue] = useState('');
-  const [saveToTodoist, setSaveToTodoist] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -24,13 +23,13 @@ export function AddItemBar({ onAdd, bulkMode, setBulkMode }: AddItemBarProps) {
 
   function submitItem() {
     if (!inputValue.trim()) return;
-    onAdd([inputValue.trim()], saveToTodoist);
+    onAdd([inputValue.trim()]);
     setInputValue('');
   }
 
   function handleBulkAdd() {
     const text = textareaRef.current?.value || '';
-    onAdd(text.split('\n'), saveToTodoist);
+    onAdd(text.split('\n'));
     setBulkMode(false);
     setInputValue('');
   }
@@ -78,15 +77,7 @@ export function AddItemBar({ onAdd, bulkMode, setBulkMode }: AddItemBarProps) {
               +
             </button>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', cursor: 'pointer', fontSize: '0.85rem', color: '#94a3b8' }}>
-            <input
-              type="checkbox"
-              checked={saveToTodoist}
-              onChange={(e) => setSaveToTodoist(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: '#84cc16', cursor: 'pointer' }}
-            />
-            Save to Todoist
-          </label>
+
         </div>
       )}
     </div>
