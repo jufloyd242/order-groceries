@@ -114,19 +114,23 @@ export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePe
         onClick={() => onTogglePersistent(item.id)}
         title={item.persistent ? 'Pinned — survives Clear All (click to unpin)' : 'Pin to keep through Clear All'}
         style={{
-          background: 'none',
-          border: 'none',
-          color: item.persistent ? '#84cc16' : '#334155',
-          fontSize: '0.95rem',
+          background: item.persistent ? 'rgba(132, 204, 22, 0.12)' : 'none',
+          border: item.persistent ? '1px solid rgba(132, 204, 22, 0.35)' : '1px solid transparent',
+          borderRadius: '6px',
+          color: item.persistent ? '#84cc16' : '#475569',
+          fontSize: '0.85rem',
           cursor: 'pointer',
-          padding: '4px',
+          padding: '3px 6px',
           flexShrink: 0,
           lineHeight: 1,
-          transition: 'color 0.15s',
+          transition: 'all 0.15s',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
         }}
         aria-label={item.persistent ? 'Unpin item' : 'Pin item'}
       >
-        📌
+        {item.persistent ? '📌 Pinned' : '📌'}
       </button>
 
       {/* Remove button */}
