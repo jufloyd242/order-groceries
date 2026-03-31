@@ -16,10 +16,12 @@ interface BatchSearchResultsProps {
   results: Map<string, BatchResultItem>;
   loadingIds: Set<string>;
   addedIds: Set<string>;
-  rememberIds: Set<string>;
+  selectedIds: Set<string>;
+  onToggleSelect: (key: string, itemId: string) => void;
+  /** Maps listItemId → product key selected as preference for that item */
+  rememberedKeys: Map<string, string | null>;
+  onSelectRemember: (key: string, itemId: string) => void;
   cartedItemIds: Set<string>;
-  onAddToCart: (product: ProductMatch, itemId: string) => void;
-  onToggleRemember: (key: string) => void;
   activeStore: 'kroger' | 'amazon' | 'both';
 }
 
@@ -28,10 +30,11 @@ export function BatchSearchResults({
   results,
   loadingIds,
   addedIds,
-  rememberIds,
+  selectedIds,
+  onToggleSelect,
+  rememberedKeys,
+  onSelectRemember,
   cartedItemIds,
-  onAddToCart,
-  onToggleRemember,
   activeStore,
 }: BatchSearchResultsProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -158,9 +161,11 @@ export function BatchSearchResults({
                             key={key}
                             product={product}
                             isAdded={addedIds.has(key)}
-                            onAddToCart={() => onAddToCart(product, item.id)}
-                            isRemembered={rememberIds.has(key)}
-                            onToggleRemember={() => onToggleRemember(key)}
+                            isSelected={selectedIds.has(key)}
+                            onToggleSelect={() => onToggleSelect(key, item.id)}
+                            isRemembered={rememberedKeys.get(item.id) === key}
+                            onSelectRemember={() => onSelectRemember(key, item.id)}
+                            radioGroupName={`remember-${item.id}`}
                           />
                         );
                       })}
@@ -179,9 +184,11 @@ export function BatchSearchResults({
                             key={key}
                             product={product}
                             isAdded={addedIds.has(key)}
-                            onAddToCart={() => onAddToCart(product, item.id)}
-                            isRemembered={rememberIds.has(key)}
-                            onToggleRemember={() => onToggleRemember(key)}
+                            isSelected={selectedIds.has(key)}
+                            onToggleSelect={() => onToggleSelect(key, item.id)}
+                            isRemembered={rememberedKeys.get(item.id) === key}
+                            onSelectRemember={() => onSelectRemember(key, item.id)}
+                            radioGroupName={`remember-${item.id}`}
                           />
                         );
                       })}

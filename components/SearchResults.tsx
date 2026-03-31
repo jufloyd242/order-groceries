@@ -9,13 +9,14 @@ const PAGE_SIZE = 10;
 interface SearchResultsProps {
   results: ProductMatch[];
   addedIds: Set<string>;
-  onAddToCart: (product: ProductMatch) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (key: string) => void;
   loading?: boolean;
-  rememberIds?: Set<string>;
-  onToggleRemember?: (key: string) => void;
+  rememberedKey?: string | null;
+  onSelectRemember?: (key: string) => void;
 }
 
-export function SearchResults({ results, addedIds, onAddToCart, loading, rememberIds, onToggleRemember }: SearchResultsProps) {
+export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, loading, rememberedKey, onSelectRemember }: SearchResultsProps) {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -55,9 +56,11 @@ export function SearchResults({ results, addedIds, onAddToCart, loading, remembe
               key={key}
               product={product}
               isAdded={addedIds.has(key)}
-              onAddToCart={() => onAddToCart(product)}
-              isRemembered={rememberIds?.has(key)}
-              onToggleRemember={onToggleRemember ? () => onToggleRemember(key) : undefined}
+              isSelected={selectedIds.has(key)}
+              onToggleSelect={() => onToggleSelect(key)}
+              isRemembered={rememberedKey === key}
+              onSelectRemember={onSelectRemember ? () => onSelectRemember(key) : undefined}
+              radioGroupName="remember-single"
             />
           );
         })}

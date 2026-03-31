@@ -28,7 +28,14 @@ export default function SearchPage() {
   const [zipCode, setZipCode] = useState('80516');
   const { addItem } = useCart();
   const [itemRawText, setItemRawText] = useState('');
-  const [rememberIds, setRememberIds] = useState<Set<string>>(new Set());
+  // Selected product keys for cart (checkbox state)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // For single-item mode: which product key is radioed as the remembered preference
+  const [rememberedKey, setRememberedKey] = useState<string | null>(null);
+  // For batch mode: per-listItemId remembered product key
+  const [batchRememberedKeys, setBatchRememberedKeys] = useState<Map<string, string | null>>(new Map());
+  // For batch mode: maps product key → listItemId (to know which section owns it)
+  const [batchSelectedItemMap, setBatchSelectedItemMap] = useState<Map<string, string>>(new Map());
   const [batchItems, setBatchItems] = useState<Array<{ id: string; raw_text: string }>>([]);
   const [batchResults, setBatchResults] = useState<Map<string, BatchResultItem>>(new Map());
   const [batchLoadingIds, setBatchLoadingIds] = useState<Set<string>>(new Set());
@@ -162,26 +169,32 @@ export default function SearchPage() {
     }
   }
 
-  function handleToggleRemember(key: string) {
-    setRememberIds((prev) => {
+  // ─── Single-item selection handlers ──────────────────────────────────────
+  function handleToggleSelect(key: string) {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
-  async function handleAddToCart(product: ProductMatch) {
-    addItem(product, 1, itemId || undefined);
-    const key = `${product.store}-${product.id}`;
-    setAddedIds((prev) => new Set(prev).add(key));
-    if (itemId) {
-      // Save as preference if "Remember" is toggled
-      if (rememberIds.has(key) && itemRawText) {
-        const { name, brand, size, store, upc, asin, price } = product;
+  async function handleAddSelectedToCart() {
+    const allResults = [...krogerResults, ...amazonResults];
+    const toAdd = allResults.filter((p) => selectedIds.has(`${p.store}-${p.id}`));
+    for (const product of toAdd) {
+      addItem(product, 1, itemId || undefined);
+    }
+    setAddedIds((prev) => {
+      const next = new Set(prev);
+      for (const p of toAdd) next.add(`${p.store}-${p.id}`);
+      return next;
+    });
+    // Save preference if a radio is selected
+    if (rememberedKey && itemRawText) {
+      const preferred = allResults.find((p) => `${p.store}-${p.id}` === rememberedKey);
+      if (preferred) {
+        const { name, brand, size, store, upc, asin, price } = preferred;
         const parts: string[] = [];
         if (brand && !name.toLowerCase().startsWith(brand.toLowerCase())) parts.push(brand);
         parts.push(name);
@@ -202,6 +215,8 @@ export default function SearchPage() {
           }),
         }).catch((err) => console.error('Failed to save preference:', err));
       }
+    }
+    if (itemId) {
       fetch('/api/list', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -209,46 +224,100 @@ export default function SearchPage() {
       }).catch((err) => console.error('Failed to update item status:', err));
       setTimeout(() => router.push('/'), 600);
     }
+    setSelectedIds(new Set());
   }
 
-  async function handleAddToCartBatch(product: ProductMatch, listItemId: string) {
-    addItem(product, 1, listItemId);
-    const key = `${product.store}-${product.id}`;
-    setAddedIds((prev) => new Set(prev).add(key));
-
-    if (rememberIds.has(key)) {
-      const rawText = batchItems.find((i) => i.id === listItemId)?.raw_text || '';
-      if (rawText) {
-        const { name, brand, size, store, upc, asin, price } = product;
-        const parts: string[] = [];
-        if (brand && !name.toLowerCase().startsWith(brand.toLowerCase())) parts.push(brand);
-        parts.push(name);
-        if (size) parts.push(size);
-        fetch('/api/preferences', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            generic_name: rawText.toLowerCase().trim(),
-            display_name: name,
-            preferred_upc: upc ?? null,
-            preferred_asin: asin ?? null,
-            preferred_store: null,
-            preferred_brand: brand ?? null,
-            search_override: parts.join(' ').trim(),
-            last_kroger_price: store === 'kroger' ? (price ?? null) : null,
-            last_amazon_price: store === 'amazon' ? (price ?? null) : null,
-          }),
-        }).catch((err) => console.error('Failed to save preference:', err));
+  // ─── Batch selection handlers ─────────────────────────────────────────────
+  function handleBatchToggleSelect(key: string, listItemId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+        setBatchSelectedItemMap((m) => { const n = new Map(m); n.delete(key); return n; });
+      } else {
+        next.add(key);
+        setBatchSelectedItemMap((m) => new Map(m).set(key, listItemId));
       }
+      return next;
+    });
+  }
+
+  function handleBatchSelectRemember(key: string, listItemId: string) {
+    setBatchRememberedKeys((prev) => new Map(prev).set(listItemId, key));
+  }
+
+  async function handleAddSelectedBatch() {
+    // Group selected keys by their listItemId
+    const byItem = new Map<string, ProductMatch[]>();
+    const allBatchProducts = Array.from(batchResults.values()).flatMap((r) => [
+      ...r.kroger,
+      ...r.amazon,
+    ]);
+    for (const key of selectedIds) {
+      const listItemId = batchSelectedItemMap.get(key);
+      if (!listItemId) continue;
+      const product = allBatchProducts.find((p) => `${p.store}-${p.id}` === key);
+      if (!product) continue;
+      const group = byItem.get(listItemId) ?? [];
+      group.push(product);
+      byItem.set(listItemId, group);
     }
 
-    fetch('/api/list', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: listItemId, updates: { status: 'carted' } }),
-    }).catch((err) => console.error('Failed to update item status:', err));
+    const affectedListItemIds: string[] = [];
+    for (const [listItemId, products] of byItem.entries()) {
+      for (const product of products) {
+        addItem(product, 1, listItemId);
+      }
+      // Save preference if a radio is remembered for this item
+      const preferredKey = batchRememberedKeys.get(listItemId);
+      if (preferredKey) {
+        const preferred = products.find((p) => `${p.store}-${p.id}` === preferredKey);
+        if (preferred) {
+          const rawText = batchItems.find((i) => i.id === listItemId)?.raw_text || '';
+          if (rawText) {
+            const { name, brand, size, store, upc, asin, price } = preferred;
+            const parts: string[] = [];
+            if (brand && !name.toLowerCase().startsWith(brand.toLowerCase())) parts.push(brand);
+            parts.push(name);
+            if (size) parts.push(size);
+            fetch('/api/preferences', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                generic_name: rawText.toLowerCase().trim(),
+                display_name: name,
+                preferred_upc: upc ?? null,
+                preferred_asin: asin ?? null,
+                preferred_store: null,
+                preferred_brand: brand ?? null,
+                search_override: parts.join(' ').trim(),
+                last_kroger_price: store === 'kroger' ? (price ?? null) : null,
+                last_amazon_price: store === 'amazon' ? (price ?? null) : null,
+              }),
+            }).catch((err) => console.error('Failed to save preference:', err));
+          }
+        }
+      }
+      fetch('/api/list', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: listItemId, updates: { status: 'carted' } }),
+      }).catch((err) => console.error('Failed to update item status:', err));
+      affectedListItemIds.push(listItemId);
+    }
 
-    setCartedItemIds((prev) => new Set(prev).add(listItemId));
+    setAddedIds((prev) => {
+      const next = new Set(prev);
+      for (const key of selectedIds) next.add(key);
+      return next;
+    });
+    setCartedItemIds((prev) => {
+      const next = new Set(prev);
+      for (const id of affectedListItemIds) next.add(id);
+      return next;
+    });
+    setSelectedIds(new Set());
+    setBatchSelectedItemMap(new Map());
   }
 
   // ─── Batch mode: early-return JSX ────────────────────────────────────────
@@ -312,12 +381,45 @@ export default function SearchPage() {
           results={batchResults}
           loadingIds={batchLoadingIds}
           addedIds={addedIds}
-          rememberIds={rememberIds}
+          selectedIds={selectedIds}
+          onToggleSelect={handleBatchToggleSelect}
+          rememberedKeys={batchRememberedKeys}
+          onSelectRemember={handleBatchSelectRemember}
           cartedItemIds={cartedItemIds}
-          onAddToCart={handleAddToCartBatch}
-          onToggleRemember={handleToggleRemember}
           activeStore={batchStoreView}
         />
+
+        {/* Sticky Add to Cart bar */}
+        {selectedIds.size > 0 && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'rgba(10, 10, 20, 0.95)',
+              backdropFilter: 'blur(12px)',
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              padding: '14px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              zIndex: 50,
+            }}
+          >
+            <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+              {selectedIds.size} product{selectedIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <button
+              className="btn btn-primary"
+              onClick={handleAddSelectedBatch}
+              style={{ padding: '10px 24px', fontWeight: 700 }}
+            >
+              🛒 Add {selectedIds.size} to Cart
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -427,11 +529,47 @@ export default function SearchPage() {
       <SearchResults
         results={activeResults}
         addedIds={addedIds}
-        onAddToCart={handleAddToCart}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
         loading={isLoading}
-        rememberIds={itemId ? rememberIds : undefined}
-        onToggleRemember={itemId ? handleToggleRemember : undefined}
+        rememberedKey={itemId ? rememberedKey : undefined}
+        onSelectRemember={itemId ? (key) => setRememberedKey(key) : undefined}
       />
+
+      {/* Sticky Add to Cart bar */}
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: 'rgba(10, 10, 20, 0.95)',
+            backdropFilter: 'blur(12px)',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            zIndex: 50,
+          }}
+        >
+          <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+            {selectedIds.size} product{selectedIds.size !== 1 ? 's' : ''} selected
+            {rememberedKey && (
+              <span style={{ marginLeft: 8, color: '#84cc16', fontSize: '0.82rem' }}>· 1 remembered</span>
+            )}
+          </span>
+          <button
+            className="btn btn-primary"
+            onClick={handleAddSelectedToCart}
+            style={{ padding: '10px 24px', fontWeight: 700 }}
+          >
+            🛒 Add {selectedIds.size} to Cart
+          </button>
+        </div>
+      )}
     </div>
   );
 }

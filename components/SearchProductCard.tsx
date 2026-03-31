@@ -5,13 +5,28 @@ import Image from 'next/image';
 
 interface ProductCardProps {
   product: ProductMatch;
+  /** Product key is already in the cart (post-submit). Shows ✓ Added state. */
   isAdded: boolean;
-  onAddToCart: () => void;
+  /** Whether this card's checkbox is checked for batch-add selection. */
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  /** Whether this card's radio button is selected as the remembered preference. */
   isRemembered?: boolean;
-  onToggleRemember?: () => void;
+  /** Called when the radio button is clicked. Set-only (not a toggle). */
+  onSelectRemember?: () => void;
+  /** Radio group name — callers scope this per search context to enforce mutual exclusivity. */
+  radioGroupName?: string;
 }
 
-export function ProductCard({ product, isAdded, onAddToCart, isRemembered, onToggleRemember }: ProductCardProps) {
+export function ProductCard({
+  product,
+  isAdded,
+  isSelected,
+  onToggleSelect,
+  isRemembered,
+  onSelectRemember,
+  radioGroupName = 'remember',
+}: ProductCardProps) {
   const price = product.price ?? 0;
   const promoPrice = product.promo_price;
   const displayPrice = promoPrice && promoPrice > 0 ? promoPrice : price;
@@ -20,8 +35,16 @@ export function ProductCard({ product, isAdded, onAddToCart, isRemembered, onTog
     <div
       style={{
         padding: 'var(--space-md)',
-        background: isAdded ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.05)',
-        border: isAdded ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+        background: isAdded
+          ? 'rgba(34, 197, 94, 0.08)'
+          : isSelected
+            ? 'rgba(132, 204, 22, 0.06)'
+            : 'rgba(255, 255, 255, 0.05)',
+        border: isAdded
+          ? '1px solid rgba(34, 197, 94, 0.3)'
+          : isSelected
+            ? '1px solid rgba(132, 204, 22, 0.35)'
+            : '1px solid rgba(255, 255, 255, 0.1)',
         borderRadius: '8px',
         display: 'flex',
         gap: 'var(--space-md)',
@@ -29,6 +52,21 @@ export function ProductCard({ product, isAdded, onAddToCart, isRemembered, onTog
         transition: 'all 0.2s ease',
       }}
     >
+      {/* Select checkbox */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        {isAdded ? (
+          <span style={{ fontSize: '1.1rem' }}>✓</span>
+        ) : (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleSelect}
+            style={{ width: 18, height: 18, accentColor: '#84cc16', cursor: 'pointer' }}
+            aria-label={`Select ${product.name}`}
+          />
+        )}
+      </div>
+
       {/* Image */}
       {product.image_url && (
         <div
@@ -84,45 +122,35 @@ export function ProductCard({ product, isAdded, onAddToCart, isRemembered, onTog
         </div>
       </div>
 
-      {/* Actions */}
-      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-        {onToggleRemember && (
-          <button
-            onClick={onToggleRemember}
-            style={{
-              padding: '4px 10px',
-              borderRadius: '6px',
-              border: `1px solid ${isRemembered ? '#84cc16' : 'rgba(255,255,255,0.15)'}`,
-              background: isRemembered ? 'rgba(132, 204, 22, 0.12)' : 'none',
-              color: isRemembered ? '#84cc16' : '#94a3b8',
-              fontWeight: 500,
-              fontSize: '0.72rem',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {isRemembered ? '💾 Saved' : '💾 Remember'}
-          </button>
-        )}
-        <button
-          onClick={onAddToCart}
-          disabled={isAdded}
+      {/* Remember radio (only shown when in a search context with an itemId/listItemId) */}
+      {onSelectRemember && (
+        <label
           style={{
-            padding: '8px 14px',
-            borderRadius: '8px',
-            border: 'none',
-            background: isAdded ? 'rgba(34, 197, 94, 0.2)' : '#84cc16',
-            color: isAdded ? '#22c55e' : '#0a0a0a',
-            fontWeight: 600,
-            fontSize: '0.82rem',
-            cursor: isAdded ? 'default' : 'pointer',
-            transition: 'all 0.2s ease',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            cursor: 'pointer',
+            fontSize: '0.72rem',
+            color: isRemembered ? '#84cc16' : '#64748b',
+            padding: '4px 8px',
+            border: `1px solid ${isRemembered ? '#84cc16' : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: '6px',
+            background: isRemembered ? 'rgba(132, 204, 22, 0.1)' : 'none',
+            transition: 'all 0.15s',
             whiteSpace: 'nowrap',
           }}
         >
-          {isAdded ? '✓ Added' : '+ Add'}
-        </button>
-      </div>
+          <input
+            type="radio"
+            name={radioGroupName}
+            checked={!!isRemembered}
+            onChange={onSelectRemember}
+            style={{ accentColor: '#84cc16', width: 13, height: 13 }}
+          />
+          💾 Remember
+        </label>
+      )}
     </div>
   );
 }
