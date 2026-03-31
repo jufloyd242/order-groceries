@@ -1,7 +1,9 @@
 'use client';
 
 import { ComparisonResult, ProductMatch } from '@/types';
+import { useCart } from '@/lib/cart/CartContext';
 import Image from 'next/image';
+import { useState } from 'react';
 
 interface ComparisonRowProps {
   result: ComparisonResult;
@@ -10,6 +12,8 @@ interface ComparisonRowProps {
 
 export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
   const { item, selected_kroger, selected_amazon, winner, savings } = result;
+  const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
 
   // Treat falsy prices (0, undefined) as unavailable
   const krogerPrice = selected_kroger ? ((selected_kroger.promo_price ?? selected_kroger.price) || null) : null;
@@ -106,6 +110,34 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
                 Save ${savings.toFixed(2)}
               </div>
             </div>
+          )}
+          {!added ? (
+            <button
+              onClick={() => {
+                const product = winner === 'amazon' ? selected_amazon : selected_kroger;
+                if (product) {
+                  addItem(product, item.quantity ?? 1, item.id);
+                  setAdded(true);
+                }
+              }}
+              disabled={!selected_kroger && !selected_amazon}
+              style={{
+                marginTop: '6px',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#84cc16',
+                color: '#0a0a0a',
+                fontWeight: 600,
+                fontSize: '0.72rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              + Add
+            </button>
+          ) : (
+            <div style={{ marginTop: '6px', fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 600 }}>✓ Added</div>
           )}
         </div>
 

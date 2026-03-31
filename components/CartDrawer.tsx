@@ -5,6 +5,7 @@ import { submitCart } from '@/lib/cart/services/registry';
 import { CartItem } from '@/types';
 import { useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 interface CartDrawerProps {
   open: boolean;
@@ -14,48 +15,81 @@ interface CartDrawerProps {
 export function CartDrawer({ open, onClose }: CartDrawerProps) {
   const { items, removeItem, updateQuantity, clearCart, removeItems, getByStore, getStoreTotals } =
     useCart();
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<'kroger' | 'amazon' | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const router = useRouter();
 
   if (!open) return null;
 
   const byStore = getByStore();
   const totals = getStoreTotals();
 
-  async function handleSubmit() {
-    if (items.length === 0) return;
-    setSubmitting(true);
+  async function handleKrogerSubmit() {
+    const krogerItems = byStore.kroger;
+    if (krogerItems.length === 0) return;
+    setSubmitting('kroger');
     setMessages([]);
-
     try {
-      const result = await submitCart(items);
-
-      // Handle OAuth redirect
+      const result = await submitCart(krogerItems);
       const authNeeded = result.results.find((r) => r.authUrl);
       if (authNeeded?.authUrl) {
         window.location.href = authNeeded.authUrl;
         return;
       }
-
-      // Remove successfully submitted items
       if (result.submittedIds.length > 0) {
+        const listItemIds = krogerItems
+          .filter((i) => result.submittedIds.includes(i.id) && i.listItemId)
+          .map((i) => i.listItemId!);
         removeItems(result.submittedIds);
-      }
-
-      const msgs: string[] = [];
-      for (const r of result.results) {
-        const storeName = r.store === 'kroger' ? 'King Soopers' : 'Amazon';
-        if (r.success) {
-          msgs.push(`✅ ${storeName}: ${r.itemsAdded} item(s) added to cart`);
-        } else {
-          msgs.push(`❌ ${storeName}: ${r.errors.join(', ')}`);
+        if (listItemIds.length > 0) {
+          fetch('/api/list/cleanup-on-cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listItemIds }),
+          }).catch((err) => console.error('Cleanup error:', err));
         }
       }
-      setMessages(msgs);
+      const r = result.results.find((r) => r.store === 'kroger');
+      if (r) {
+        setMessages([r.success
+          ? `✅ King Soopers: ${r.itemsAdded} item(s) added to cart`
+          : `❌ King Soopers: ${r.errors.join(', ')}`]);
+      }
     } catch {
-      setMessages(['Failed to submit cart. Please try again.']);
+      setMessages(['Failed to submit to King Soopers. Please try again.']);
     } finally {
-      setSubmitting(false);
+      setSubmitting(null);
+    }
+  }
+
+  async function handleAmazonSubmit() {
+    const amazonItems = byStore.amazon;
+    if (amazonItems.length === 0) return;
+    setSubmitting('amazon');
+    setMessages([]);
+    try {
+      const result = await submitCart(amazonItems);
+      if (result.submittedIds.length > 0) {
+        const listItemIds = amazonItems
+          .filter((i) => result.submittedIds.includes(i.id) && i.listItemId)
+          .map((i) => i.listItemId!);
+        removeItems(result.submittedIds);
+        if (listItemIds.length > 0) {
+          fetch('/api/list/cleanup-on-cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listItemIds }),
+          }).catch((err) => console.error('Cleanup error:', err));
+        }
+      }
+      const r = result.results.find((r) => r.store === 'amazon');
+      setMessages([r?.success
+        ? `✅ Amazon: ${r.itemsAdded} item(s) added to cart`
+        : '❌ Amazon cart integration coming soon.']);
+    } catch {
+      setMessages(['Failed to submit to Amazon. Please try again.']);
+    } finally {
+      setSubmitting(null);
     }
   }
 
@@ -85,10 +119,20 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
           <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
             🛒 Cart {items.length > 0 && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>({items.length})</span>}
           </h2>
-          <button onClick={onClose} style={{
-            background: 'none', border: 'none', color: '#94a3b8',
-            fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: '4px',
-          }}>✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {items.length > 0 && (
+              <button
+                onClick={() => { onClose(); router.push('/compare'); }}
+                style={{ background: 'none', color: '#94a3b8', fontSize: '0.82rem', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
+              >
+                📊 Compare
+              </button>
+            )}
+            <button onClick={onClose} style={{
+              background: 'none', border: 'none', color: '#94a3b8',
+              fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: '4px',
+            }}>✕</button>
+          </div>
         </div>
 
         {/* Scrollable item list */}
@@ -129,7 +173,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
             </>
           )}
 
-          {/* Result messages */}
+        {/* Result messages */}
           {messages.length > 0 && (
             <div style={{
               marginTop: '16px', padding: '14px', borderRadius: '8px',
@@ -155,14 +199,26 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
               <span style={{ fontSize: '0.95rem', color: '#94a3b8' }}>Estimated total</span>
               <span style={{ fontSize: '1.3rem', fontWeight: 700 }}>${totals.total.toFixed(2)}</span>
             </div>
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={handleSubmit}
-              disabled={submitting}
-              style={{ width: '100%', padding: '14px', fontSize: '1rem', marginBottom: '8px' }}
-            >
-              {submitting ? '🛒 Submitting...' : `Submit Cart (${items.length} item${items.length !== 1 ? 's' : ''})`}
-            </button>
+            {byStore.kroger.length > 0 && (
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleKrogerSubmit}
+                disabled={submitting !== null}
+                style={{ width: '100%', padding: '14px', fontSize: '1rem', marginBottom: '8px', background: '#4ade80', borderColor: '#4ade80', color: '#000' }}
+              >
+                {submitting === 'kroger' ? '🛒 Submitting...' : `Push to King Soopers (${byStore.kroger.length})`}
+              </button>
+            )}
+            {byStore.amazon.length > 0 && (
+              <button
+                className="btn btn-primary btn-lg"
+                onClick={handleAmazonSubmit}
+                disabled={submitting !== null}
+                style={{ width: '100%', padding: '14px', fontSize: '1rem', marginBottom: '8px', background: '#ff9900', borderColor: '#ff9900', color: '#000' }}
+              >
+                {submitting === 'amazon' ? '🛒 Submitting...' : `Push to Amazon (${byStore.amazon.length})`}
+              </button>
+            )}
             <button
               onClick={clearCart}
               style={{

@@ -13,27 +13,12 @@ interface ProductPreference {
   times_purchased: number;
 }
 
-interface FormData {
-  display_name: string;
-  preferred_brand: string;
-  preferred_store: string;
-  search_override?: string;
-}
-
 export default function PreferencesPage() {
   const router = useRouter();
   const [preferences, setPreferences] = useState<ProductPreference[]>([]);
   const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState<FormData>({
-    display_name: '',
-    preferred_brand: '',
-    preferred_store: 'King Soopers',
-    search_override: '',
-  });
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'purchases'>('name');
-  const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
 
   // Fetch preferences on mount
@@ -57,47 +42,7 @@ export default function PreferencesPage() {
     }
   }
 
-  function handleInputChange(field: keyof FormData, value: string) {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    
-    if (!formData.display_name.trim()) {
-      setMessage('Display name is required');
-      return;
-    }
-
-    try {
-      const method = editingId ? 'PUT' : 'POST';
-      const body = editingId 
-        ? { id: editingId, ...formData }
-        : { generic_name: formData.display_name.toLowerCase(), ...formData };
-
-      const res = await fetch('/api/preferences', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setMessage(editingId ? '✅ Updated!' : '✅ Created!');
-        setFormData({ display_name: '', preferred_brand: '', preferred_store: 'King Soopers', search_override: '' });
-        setEditingId(null);
-        setShowForm(false);
-        await fetchPreferences();
-        setTimeout(() => setMessage(''), 2000);
-      } else {
-        setMessage(`Error: ${data.error}`);
-      }
-    } catch (err) {
-      console.error('Submit error:', err);
-      setMessage('Failed to save preference');
-    }
-  }
-
+  function handleDelete(id: string): void;
   async function handleDelete(id: string) {
     if (!confirm('Delete this preference?')) return;
 
@@ -118,23 +63,6 @@ export default function PreferencesPage() {
       console.error('Delete error:', err);
       setMessage('Failed to delete preference');
     }
-  }
-
-  function handleEdit(pref: ProductPreference) {
-    setFormData({
-      display_name: pref.display_name,
-      preferred_brand: pref.preferred_brand || '',
-      preferred_store: pref.preferred_store || 'King Soopers',
-      search_override: '',
-    });
-    setEditingId(pref.id);
-    setShowForm(true);
-  }
-
-  function handleCancel() {
-    setFormData({ display_name: '', preferred_brand: '', preferred_store: 'King Soopers', search_override: '' });
-    setEditingId(null);
-    setShowForm(false);
   }
 
   // Filter and sort
@@ -171,9 +99,6 @@ export default function PreferencesPage() {
       <header style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h1 className="page-title">⚙️ Product Preferences</h1>
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? '✕ Cancel' : '+ New'}
-          </button>
         </div>
         <button className="btn btn-secondary" onClick={() => router.back()} style={{ marginBottom: '1rem' }}>
           ← Back
@@ -214,73 +139,6 @@ export default function PreferencesPage() {
               <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{mostPurchased.display_name}</div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Form */}
-      {showForm && (
-        <div className="glass-card" style={{ padding: 'var(--space-lg)', marginBottom: 'var(--space-lg)' }}>
-          <h3 style={{ marginBottom: 'var(--space-md)', fontSize: '1.1rem' }}>
-            {editingId ? 'Edit Preference' : 'Add New Preference'}
-          </h3>
-          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 'var(--space-md)' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                Display Name {editingId && '(cannot change)'}
-              </label>
-              <input
-                type="text"
-                className="ui-input"
-                value={formData.display_name}
-                onChange={(e) => handleInputChange('display_name', e.target.value)}
-                disabled={!!editingId}
-                placeholder="e.g., Whole Milk"
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  Preferred Brand
-                </label>
-                <input
-                  type="text"
-                  className="ui-input"
-                  value={formData.preferred_brand}
-                  onChange={(e) => handleInputChange('preferred_brand', e.target.value)}
-                  placeholder="e.g., Horizon"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  Preferred Store
-                </label>
-                <select
-                  className="ui-input"
-                  value={formData.preferred_store}
-                  onChange={(e) => handleInputChange('preferred_store', e.target.value)}
-                  style={{ width: '100%' }}
-                >
-                  <option>King Soopers</option>
-                  <option>Amazon</option>
-                  <option>Target</option>
-                  <option>Local</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-              <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                {editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={handleCancel} style={{ flex: 1 }}>
-                Cancel
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
@@ -352,22 +210,13 @@ export default function PreferencesPage() {
                     {pref.preferred_store || '—'}
                   </td>
                   <td style={{ padding: 'var(--space-md)', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => handleEdit(pref)}
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => handleDelete(pref.id)}
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleDelete(pref.id)}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                    >
+                      🗑️
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -382,13 +231,10 @@ export default function PreferencesPage() {
           <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)', opacity: 0.5 }}>
             📦
           </div>
-          <h3 style={{ fontSize: '1.2rem', marginBottom: 'var(--space-sm)' }}>No preferences yet</h3>
+          <h3 style={{ fontSize: '1.2rem', marginBottom: 'var(--space-sm)' }}>No learned preferences yet</h3>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)' }}>
-            Add your first product mapping to get started
+            Preferences are saved automatically when you check “💾 Remember” on a search result and add it to your cart.
           </p>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-            + Create Preference
-          </button>
         </div>
       )}
     </div>

@@ -70,3 +70,23 @@ export async function pullGroceryItems(): Promise<
       taskId: t.id,
     }));
 }
+
+/**
+ * Create a new task in the grocery project tagged with the sgo_added label.
+ * Returns the new task's ID.
+ */
+export async function createTask(content: string): Promise<string> {
+  const project = await findProjectByName();
+  if (!project) {
+    throw new Error(
+      `Todoist project "${process.env.TODOIST_PROJECT_NAME || 'groceries'}" not found.`
+    );
+  }
+  const api = getClient();
+  const task = await api.addTask({
+    content,
+    projectId: project.id,
+    labels: ['sgo_added'],
+  });
+  return task.id;
+}

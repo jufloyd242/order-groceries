@@ -5,109 +5,124 @@ import Image from 'next/image';
 
 interface ProductCardProps {
   product: ProductMatch;
-  isSelected: boolean;
-  onToggle: () => void;
+  isAdded: boolean;
+  onAddToCart: () => void;
+  isRemembered?: boolean;
+  onToggleRemember?: () => void;
 }
 
-export function ProductCard({ product, isSelected, onToggle }: ProductCardProps) {
+export function ProductCard({ product, isAdded, onAddToCart, isRemembered, onToggleRemember }: ProductCardProps) {
   const price = product.price ?? 0;
   const promoPrice = product.promo_price;
   const displayPrice = promoPrice && promoPrice > 0 ? promoPrice : price;
 
-  const storeBg = product.store === 'kroger' 
-    ? 'rgba(100, 120, 50, 0.15)' 
-    : 'rgba(255, 153, 0, 0.15)';
-  
-  const storeBorder = product.store === 'kroger'
-    ? '1px solid rgba(100, 120, 50, 0.3)'
-    : '1px solid rgba(255, 153, 0, 0.3)';
-
   return (
     <div
-      onClick={onToggle}
       style={{
         padding: 'var(--space-md)',
-        background: isSelected ? storeBg : 'rgba(255, 255, 255, 0.05)',
-        border: isSelected ? storeBorder : '1px solid rgba(255, 255, 255, 0.1)',
+        background: isAdded ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+        border: isAdded ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
         borderRadius: '8px',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-sm)',
+        gap: 'var(--space-md)',
+        alignItems: 'center',
+        transition: 'all 0.2s ease',
       }}
     >
-      {/* Checkbox */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => {}}
-          onClick={(e) => e.stopPropagation()}
-          style={{ width: 20, height: 20, cursor: 'pointer' }}
-        />
-        <span
-          style={{
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            padding: '2px 8px',
-            borderRadius: '4px',
-            background: product.store === 'kroger' ? 'rgba(100, 120, 50, 0.4)' : 'rgba(255, 153, 0, 0.4)',
-            color: product.store === 'kroger' ? '#b8d962' : '#ff9900',
-          }}
-        >
-          {product.store === 'kroger' ? 'KING SOOPERS' : 'AMAZON'}
-        </span>
-      </div>
-
       {/* Image */}
       {product.image_url && (
-        <div style={{ position: 'relative', width: '100%', height: 120, borderRadius: '4px', overflow: 'hidden' }}>
+        <div
+          style={{
+            position: 'relative',
+            width: 64,
+            height: 64,
+            borderRadius: '6px',
+            overflow: 'hidden',
+            flexShrink: 0,
+            background: '#1e293b',
+          }}
+        >
           <Image
             src={product.image_url}
             alt={product.name}
             fill
-            style={{ objectFit: 'cover' }}
+            style={{ objectFit: 'contain' }}
             unoptimized
           />
         </div>
       )}
 
-      {/* Name */}
-      <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc', lineHeight: 1.3 }}>
-        {product.name}
-      </div>
-
-      {/* Brand */}
-      {product.brand && (
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          {product.brand}
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc', lineHeight: 1.3 }}>
+          {product.name}
         </div>
-      )}
-
-      {/* Price */}
-      <div style={{ fontSize: '1rem', fontWeight: 700, color: displayPrice > 0 ? 'var(--accent-green)' : 'var(--text-muted)', marginTop: 'auto' }}>
-        {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
-        {promoPrice && promoPrice > 0 && price > promoPrice && (
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through', marginLeft: '6px' }}>
-            ${price.toFixed(2)}
-          </span>
+        {product.brand && (
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+            {product.brand}
+          </div>
         )}
+        {product.size && (
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {product.size}
+          </div>
+        )}
+        <div
+          style={{
+            fontSize: '1rem',
+            fontWeight: 700,
+            color: displayPrice > 0 ? 'var(--accent-green)' : 'var(--text-muted)',
+            marginTop: '4px',
+          }}
+        >
+          {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
+          {promoPrice && promoPrice > 0 && price > promoPrice && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through', marginLeft: '6px' }}>
+              ${price.toFixed(2)}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Size */}
-      {product.size && (
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {product.size}
-        </div>
-      )}
-
-      {/* Match Score */}
-      {product.match_score != null && product.match_score > 0 && (
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          Match: {product.match_score}%
-        </div>
-      )}
+      {/* Actions */}
+      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+        {onToggleRemember && (
+          <button
+            onClick={onToggleRemember}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border: `1px solid ${isRemembered ? '#84cc16' : 'rgba(255,255,255,0.15)'}`,
+              background: isRemembered ? 'rgba(132, 204, 22, 0.12)' : 'none',
+              color: isRemembered ? '#84cc16' : '#94a3b8',
+              fontWeight: 500,
+              fontSize: '0.72rem',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isRemembered ? '💾 Saved' : '💾 Remember'}
+          </button>
+        )}
+        <button
+          onClick={onAddToCart}
+          disabled={isAdded}
+          style={{
+            padding: '8px 14px',
+            borderRadius: '8px',
+            border: 'none',
+            background: isAdded ? 'rgba(34, 197, 94, 0.2)' : '#84cc16',
+            color: isAdded ? '#22c55e' : '#0a0a0a',
+            fontWeight: 600,
+            fontSize: '0.82rem',
+            cursor: isAdded ? 'default' : 'pointer',
+            transition: 'all 0.2s ease',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isAdded ? '✓ Added' : '+ Add'}
+        </button>
+      </div>
     </div>
   );
 }

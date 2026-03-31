@@ -8,24 +8,18 @@ const PAGE_SIZE = 10;
 
 interface SearchResultsProps {
   results: ProductMatch[];
-  selectedIds: Set<string>;
-  onToggleSelect: (productId: string) => void;
+  addedIds: Set<string>;
+  onAddToCart: (product: ProductMatch) => void;
   loading?: boolean;
+  rememberIds?: Set<string>;
+  onToggleRemember?: (key: string) => void;
 }
 
-export function SearchResults({
-  results,
-  selectedIds,
-  onToggleSelect,
-  loading,
-}: SearchResultsProps) {
-  const [krogerPage, setKrogerPage] = useState(1);
-  const [amazonPage, setAmazonPage] = useState(1);
+export function SearchResults({ results, addedIds, onAddToCart, loading, rememberIds, onToggleRemember }: SearchResultsProps) {
+  const [page, setPage] = useState(1);
 
-  // Reset to page 1 whenever results change (new search)
   useEffect(() => {
-    setKrogerPage(1);
-    setAmazonPage(1);
+    setPage(1);
   }, [results]);
 
   if (loading) {
@@ -47,124 +41,70 @@ export function SearchResults({
     );
   }
 
-  const byName = (a: ProductMatch, b: ProductMatch) => a.name.localeCompare(b.name);
-  const krogerAll = results.filter((r) => r.store === 'kroger').sort(byName);
-  const amazonAll = results.filter((r) => r.store === 'amazon').sort(byName);
-
-  const krogerTotalPages = Math.max(1, Math.ceil(krogerAll.length / PAGE_SIZE));
-  const amazonTotalPages = Math.max(1, Math.ceil(amazonAll.length / PAGE_SIZE));
-
-  const krogerSlice = krogerAll.slice((krogerPage - 1) * PAGE_SIZE, krogerPage * PAGE_SIZE);
-  const amazonSlice = amazonAll.slice((amazonPage - 1) * PAGE_SIZE, amazonPage * PAGE_SIZE);
+  const sorted = [...results].sort((a, b) => a.name.localeCompare(b.name));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const slice = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2xl)', marginBottom: 'var(--space-2xl)' }}>
-      {/* Kroger Column */}
-      <div>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 'var(--space-md)', color: '#b8d962' }}>
-          KING SOOPERS ({krogerAll.length})
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-md)' }}>
-          {krogerSlice.map((product) => (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+        {slice.map((product) => {
+          const key = `${product.store}-${product.id}`;
+          return (
             <ProductCard
-              key={`${product.store}-${product.id}`}
+              key={key}
               product={product}
-              isSelected={selectedIds.has(`${product.store}-${product.id}`)}
-              onToggle={() => onToggleSelect(`${product.store}-${product.id}`)}
+              isAdded={addedIds.has(key)}
+              onAddToCart={() => onAddToCart(product)}
+              isRemembered={rememberIds?.has(key)}
+              onToggleRemember={onToggleRemember ? () => onToggleRemember(key) : undefined}
             />
-          ))}
-          {krogerAll.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--space-lg)' }}>
-              No products found
-            </div>
-          )}
-        </div>
-        {krogerTotalPages > 1 && (
-          <PaginationControls
-            page={krogerPage}
-            totalPages={krogerTotalPages}
-            onPageChange={setKrogerPage}
-          />
-        )}
+          );
+        })}
       </div>
-
-      {/* Amazon Column */}
-      <div>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 'var(--space-md)', color: '#ff9900' }}>
-          AMAZON ({amazonAll.length})
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-md)' }}>
-          {amazonSlice.map((product) => (
-            <ProductCard
-              key={`${product.store}-${product.id}`}
-              product={product}
-              isSelected={selectedIds.has(`${product.store}-${product.id}`)}
-              onToggle={() => onToggleSelect(`${product.store}-${product.id}`)}
-            />
-          ))}
-          {amazonAll.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 'var(--space-lg)' }}>
-              No products available
-            </div>
-          )}
+      {totalPages > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            marginTop: 'var(--space-lg)',
+          }}
+        >
+          <button
+            onClick={() => setPage((p) => p - 1)}
+            disabled={page <= 1}
+            style={{
+              padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem',
+              border: '1px solid rgba(255,255,255,0.12)',
+              cursor: page <= 1 ? 'default' : 'pointer',
+              background: 'none',
+              color: page <= 1 ? '#475569' : '#e2e8f0',
+              opacity: page <= 1 ? 0.5 : 1,
+            }}
+          >
+            ← Prev
+          </button>
+          <span style={{ fontSize: '0.85rem', color: '#94a3b8', minWidth: '80px', textAlign: 'center' }}>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={page >= totalPages}
+            style={{
+              padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem',
+              border: '1px solid rgba(255,255,255,0.12)',
+              cursor: page >= totalPages ? 'default' : 'pointer',
+              background: 'none',
+              color: page >= totalPages ? '#475569' : '#e2e8f0',
+              opacity: page >= totalPages ? 0.5 : 1,
+            }}
+          >
+            Next →
+          </button>
         </div>
-        {amazonTotalPages > 1 && (
-          <PaginationControls
-            page={amazonPage}
-            totalPages={amazonTotalPages}
-            onPageChange={setAmazonPage}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PaginationControls({
-  page,
-  totalPages,
-  onPageChange,
-}: {
-  page: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      gap: '12px', marginTop: 'var(--space-lg)',
-    }}>
-      <button
-        onClick={() => onPageChange(page - 1)}
-        disabled={page <= 1}
-        style={{
-          padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem',
-          border: '1px solid rgba(255,255,255,0.12)',
-          cursor: page <= 1 ? 'default' : 'pointer',
-          background: 'none',
-          color: page <= 1 ? '#475569' : '#e2e8f0',
-          opacity: page <= 1 ? 0.5 : 1,
-        }}
-      >
-        ← Prev
-      </button>
-      <span style={{ fontSize: '0.85rem', color: '#94a3b8', minWidth: '80px', textAlign: 'center' }}>
-        Page {page} of {totalPages}
-      </span>
-      <button
-        onClick={() => onPageChange(page + 1)}
-        disabled={page >= totalPages}
-        style={{
-          padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem',
-          border: '1px solid rgba(255,255,255,0.12)',
-          cursor: page >= totalPages ? 'default' : 'pointer',
-          background: 'none',
-          color: page >= totalPages ? '#475569' : '#e2e8f0',
-          opacity: page >= totalPages ? 0.5 : 1,
-        }}
-      >
-        Next →
-      </button>
+      )}
     </div>
   );
 }

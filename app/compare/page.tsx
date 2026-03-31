@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
-import { CartActions } from '@/components/CartActions';
-import { useCart } from '@/lib/cart/CartContext';
-import { CartDrawer } from '@/components/CartDrawer';
 
 const CACHE_KEY = 'sgo_comparison_cache';
 
@@ -15,9 +12,7 @@ export default function ComparePage() {
   const [summary, setSummary] = useState<ComparisonSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cartOpen, setCartOpen] = useState(false);
   const [includeAmazon, setIncludeAmazon] = useState(false);
-  const { addItem } = useCart();
   const router = useRouter();
 
   useEffect(() => {
@@ -77,58 +72,6 @@ export default function ComparePage() {
     // Clear cache so comparison re-fetches with updated preference
     try { sessionStorage.removeItem(CACHE_KEY); } catch (_) {}
     router.push(`/pick/${itemId}?store=${store}`);
-  }
-
-  async function handleKrogerPush() {
-    const winners = results.filter((r) => r.selected_kroger?.upc);
-    let added = 0;
-    const addedListItemIds: string[] = [];
-    for (const r of winners) {
-      if (r.selected_kroger) {
-        addItem(r.selected_kroger, r.item.quantity ?? 1, r.item.id);
-        addedListItemIds.push(r.item.id);
-        added++;
-      }
-    }
-    if (added > 0) {
-      setCartOpen(true);
-      // Fire-and-forget: clean up list items and Todoist tasks
-      if (addedListItemIds.length > 0) {
-        fetch('/api/list/cleanup-on-cart', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ listItemIds: addedListItemIds }),
-        }).catch((err) => console.error('Cleanup-on-cart error:', err));
-      }
-    } else {
-      alert('No King Soopers items with UPCs to add.');
-    }
-  }
-
-  async function handleAmazonPush() {
-    const winners = results.filter((r) => r.selected_amazon?.asin);
-    let added = 0;
-    const addedListItemIds: string[] = [];
-    for (const r of winners) {
-      if (r.selected_amazon) {
-        addItem(r.selected_amazon, r.item.quantity ?? 1, r.item.id);
-        addedListItemIds.push(r.item.id);
-        added++;
-      }
-    }
-    if (added > 0) {
-      setCartOpen(true);
-      // Fire-and-forget: clean up list items and Todoist tasks
-      if (addedListItemIds.length > 0) {
-        fetch('/api/list/cleanup-on-cart', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ listItemIds: addedListItemIds }),
-        }).catch((err) => console.error('Cleanup-on-cart error:', err));
-      }
-    } else {
-      alert('No Amazon items to add.');
-    }
   }
 
   if (loading) {
@@ -205,24 +148,12 @@ export default function ComparePage() {
         ))}
       </div>
 
-      {/* Cart Actions */}
-      {summary && (
-        <CartActions 
-          summary={summary} 
-          onKrogerPush={handleKrogerPush} 
-          onAmazonPush={handleAmazonPush}
-          includeAmazon={includeAmazon}
-        />
-      )}
-
       {/* Dashboard Footer / Home link */}
       <footer style={{ marginTop: 'var(--space-2xl)', textAlign: 'center' }}>
         <button className="btn btn-secondary" onClick={() => router.push('/')}>
-          ← Back to Shopping List
+          ← Back to Inbox
         </button>
       </footer>
-
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
 }

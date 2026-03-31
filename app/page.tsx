@@ -2,37 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import styles from './page.module.css';
 import { AddItemBar } from '../components/AddItemBar';
 import { ListItem } from '../components/ListItem';
 import { SyncButton } from '../components/SyncButton';
+import { BatchActionBar } from '../components/BatchActionBar';
 
-// Share common types
-export interface ListItemData {
+interface ListItemData {
   id: string;
   raw_text: string;
   source: 'manual' | 'todoist';
   status: string;
-  preference_match?: string | null;
-}
-
-interface PreferenceData {
-  generic_name: string;
-  display_name: string;
+  quantity?: number | null;
 }
 
 export default function Home() {
   const router = useRouter();
   const [items, setItems] = useState<ListItemData[]>([]);
-  const [preferences, setPreferences] = useState<PreferenceData[]>([]);
   const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
-  // Load list items and preferences on mount
   useEffect(() => {
     fetchItems();
-    fetchPreferences();
   }, []);
 
   async function fetchItems() {
@@ -47,41 +39,37 @@ export default function Home() {
     }
   }
 
-  async function fetchPreferences() {
+  async function addItems(texts: string[], saveToTodoist = false) {
+    const normalized = texts.map((t) => t.trim()).filter((t) => t.length > 0);
+    if (normalized.length === 0) return;
+
     try {
-      const res = await fetch('/api/preferences');
-      const data = await res.json();
-      if (data.success) {
-        setPreferences(
-          data.preferences.map((p: PreferenceData) => ({
-            generic_name: p.generic_name,
-            display_name: p.display_name,
-          }))
+      let itemsToAdd: Array<{ raw_text: string; source: 'manual' | 'todoist'; todoist_task_id?: string }>;
+
+      if (saveToTodoist) {
+        itemsToAdd = await Promise.all(
+          normalized.map(async (text) => {
+            try {
+              const res = await fetch('/api/todoist/task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: text }),
+              });
+              const data = await res.json();
+              return {
+                raw_text: text,
+                source: 'todoist' as const,
+                todoist_task_id: data.success ? data.todoist_task_id : undefined,
+              };
+            } catch {
+              return { raw_text: text, source: 'manual' as const };
+            }
+          })
         );
+      } else {
+        itemsToAdd = normalized.map((t) => ({ raw_text: t, source: 'manual' as const }));
       }
-    } catch (err) {
-      console.error('Failed to load preferences:', err);
-    }
-  }
 
-  function findPreferenceMatch(rawText: string): string | null {
-    const lower = rawText.toLowerCase().trim();
-    const match = preferences.find(
-      (p) =>
-        p.generic_name === lower || lower.includes(p.generic_name)
-    );
-    return match ? match.display_name : null;
-  }
-
-  async function addItems(texts: string[]) {
-    const itemsToAdd = texts
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
-      .map((t) => ({ raw_text: t, source: 'manual' }));
-
-    if (itemsToAdd.length === 0) return;
-
-    try {
       const res = await fetch('/api/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,7 +127,6 @@ export default function Home() {
         return;
       }
 
-      // Add synced items to the list
       const addRes = await fetch('/api/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,9 +138,7 @@ export default function Home() {
         await fetchItems();
         setSyncMessage(
           `Synced ${addData.added} item${addData.added !== 1 ? 's' : ''} from Todoist` +
-            (addData.skipped > 0
-              ? ` (${addData.skipped} already in list)`
-              : '')
+            (addData.skipped > 0 ? ` (${addData.skipped} already in list)` : '')
         );
       }
     } catch (err) {
@@ -164,14 +149,59 @@ export default function Home() {
     }
   }
 
-  const matchedCount = items.filter((i) => findPreferenceMatch(i.raw_text)).length;
-  const unmatchedCount = items.length - matchedCount;
+  function handleSearch(itemId: string, query: string) {
+    router.push(`/search?itemId=${itemId}&q=${encodeURIComponent(query)}`);
+  }
+
+  const selectableIds = items
+    .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
+    .map((i) => i.id);
+
+  const allSelected =
+    selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableIds));
+    }
+  }
+
+  function handleBatchSearch(stores: ('kroger' | 'amazon')[]) {
+    const selected = items.filter((i) => selectedIds.has(i.id));
+    if (selected.length === 0) return;
+    const ids = selected.map((i) => i.id).join(',');
+    const storeParam = stores.join(',');
+    router.push(`/search?mode=batch&ids=${encodeURIComponent(ids)}&stores=${encodeURIComponent(storeParam)}`);
+  }
+
+  const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'matched').length;
+  const cartedCount = items.filter((i) => i.status === 'carted' || i.status === 'purchased').length;
 
   return (
     <div className="container" style={{ paddingBottom: '120px' }}>
       {/* Header */}
       <header className="page-header" style={{ marginBottom: '1rem', paddingTop: '2.5rem' }}>
-        <h1 className="page-title">🛒 Smart Grocery Optimizer</h1>
+        <div>
+          <h1 className="page-title">🛒 Grocery Inbox</h1>
+          {items.length > 0 && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
+              {pendingCount > 0 ? `${pendingCount} need finding` : ''}
+              {pendingCount > 0 && cartedCount > 0 ? ' · ' : ''}
+              {cartedCount > 0 ? `${cartedCount} in cart` : ''}
+            </p>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <SyncButton syncing={syncing} onSync={syncFromTodoist} />
           <button className="btn btn-secondary btn-icon" onClick={() => setBulkMode(!bulkMode)}>
@@ -196,7 +226,7 @@ export default function Home() {
             fontSize: '0.9rem',
             border: `1px solid ${syncMessage.startsWith('Error') ? 'var(--accent-red)' : 'var(--accent-green)'}`,
             color: syncMessage.startsWith('Error') ? 'var(--accent-red)' : 'var(--accent-green)',
-            backgroundColor: 'rgba(0,0,0,0.4)'
+            backgroundColor: 'rgba(0,0,0,0.4)',
           }}
         >
           {syncMessage}
@@ -206,34 +236,28 @@ export default function Home() {
       {/* Add Item Input */}
       <AddItemBar onAdd={addItems} bulkMode={bulkMode} setBulkMode={setBulkMode} />
 
-      {/* Search Button */}
-      <button
-        className="btn btn-accent btn-lg"
-        onClick={() => router.push('/search')}
-        style={{ 
-          width: '100%', 
-          marginTop: 'var(--space-lg)', 
-          padding: 'var(--space-md)',
-          backgroundColor: 'rgba(184, 217, 98, 0.15)',
-          border: '2px solid rgba(184, 217, 98, 0.3)',
-          color: '#b8d962'
-        }}
-      >
-        🔍 Search & Add Products
-      </button>
-
       {/* Shopping List */}
       {items.length > 0 && (
         <div className="glass-card" style={{ marginTop: 'var(--space-lg)' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 'var(--space-md)',
-          }}>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 'var(--space-md)',
+            }}
+          >
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  disabled={selectableIds.length === 0}
+                  style={{ width: 16, height: 16, accentColor: '#84cc16', cursor: 'pointer' }}
+                  aria-label="Select all"
+                />
               TODAY&apos;S LIST
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 'var(--space-sm)' }}>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
                 {items.length} item{items.length !== 1 ? 's' : ''}
               </span>
             </h2>
@@ -246,37 +270,17 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Mapping status summary */}
-          <div style={{
-            display: 'flex',
-            gap: 'var(--space-md)',
-            marginBottom: 'var(--space-md)',
-            paddingBottom: 'var(--space-md)',
-            borderBottom: '1px solid var(--border-subtle)',
-            fontSize: '0.85rem',
-          }}>
-            {matchedCount > 0 && (
-              <span className="badge badge-green">✅ {matchedCount} mapped</span>
-            )}
-            {unmatchedCount > 0 && (
-              <span className="badge badge-amber">⚠️ {unmatchedCount} new</span>
-            )}
-          </div>
-
-          {/* Item list */}
           <div>
-            {items.map((item, index) => {
-              const match = findPreferenceMatch(item.raw_text);
-              return (
-                <ListItem 
-                  key={item.id} 
-                  item={item} 
-                  index={index} 
-                  matchName={match} 
-                  onRemove={removeItem} 
-                />
-              );
-            })}
+            {items.map((item, index) => (
+              <ListItem
+                key={item.id}
+                item={item}
+                index={index}
+                onRemove={removeItem}
+                selected={selectedIds.has(item.id)}
+                onToggle={toggleSelect}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -293,45 +297,45 @@ export default function Home() {
         >
           <div style={{ fontSize: '4rem', marginBottom: 'var(--space-md)', opacity: 0.8 }}>🛒</div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            Your list is empty
+            Your inbox is empty
           </h2>
           <p style={{ color: 'var(--text-secondary)', maxWidth: 400, margin: '0 auto', fontSize: '1.05rem', lineHeight: 1.5 }}>
-            Add items above or sync from Todoist. Type naturally — &quot;milk&quot;,
-            &quot;tp&quot;, &quot;chx breast 2lbs&quot;. The system learns your preferences over time.
+            Add items above or sync from Todoist. Tap an item to find it at King Soopers.
           </p>
         </div>
       )}
 
-      {/* Compare Prices CTA */}
-      {items.length > 0 && (
-        <div style={{ 
-          position: 'fixed', 
-          bottom: 0, 
-          left: 0, 
-          right: 0, 
-          padding: 'var(--space-md)', 
-          background: 'linear-gradient(to top, rgba(2,6,23,0.95) 40%, transparent)',
-          textAlign: 'center',
-          pointerEvents: 'none',
-          display: 'flex',
-          justifyContent: 'center',
-          zIndex: 10
-        }}>
-          <a href="/compare" className="btn btn-primary btn-lg shadow-lg" style={{ width: '100%', maxWidth: '400px', pointerEvents: 'auto', padding: '16px', fontSize: '1.1rem' }}>
-            🔍 Search Items in List ({items.length} item{items.length !== 1 ? 's' : ''})
-          </a>
+      {/* Compare prices hint */}
+      {cartedCount > 0 && (
+        <div style={{ marginTop: 'var(--space-lg)', textAlign: 'center' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => router.push('/compare')}
+            style={{ fontSize: '0.9rem' }}
+          >
+            📊 Compare prices across stores
+          </button>
         </div>
       )}
 
+      {/* Batch action bar (sticky bottom) */}
+      <BatchActionBar
+        selectedCount={selectedIds.size}
+        onSearch={handleBatchSearch}
+      />
+
       {/* Footer */}
-      <footer style={{
-        textAlign: 'center',
-        padding: 'var(--space-xl) 0',
-        color: 'var(--text-muted)',
-        fontSize: '0.8rem',
-      }}>
-        King Soopers (80516) · Amazon · Powered by Kroger API &amp; SerpApi
+      <footer
+        style={{
+          textAlign: 'center',
+          padding: 'var(--space-xl) 0',
+          color: 'var(--text-muted)',
+          fontSize: '0.8rem',
+        }}
+      >
+        King Soopers · Amazon · Powered by Kroger API &amp; SerpApi
       </footer>
     </div>
   );
 }
+

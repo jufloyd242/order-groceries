@@ -126,17 +126,9 @@ export default function PickItemPage() {
         return;
       }
 
-      // 4. Otherwise, check if any items are still unpicked
-      const listRes = await fetch('/api/list');
-      const listData = await listRes.json();
-      const unpickedItems = listData.items.filter((i: ListItem) => i.status === 'pending');
-
-      if (unpickedItems.length > 0) {
-        const nextItem = unpickedItems.find((i: ListItem) => i.id !== itemId) || unpickedItems[0];
-        router.push(`/pick/${nextItem.id}`);
-      } else {
-        setAllDone(true);
-      }
+      // Navigate home after saving preference
+      router.push('/');
+      return;
     } catch (err) {
       setConfirming(false);
       alert('Failed to save preference or update quantity.');
