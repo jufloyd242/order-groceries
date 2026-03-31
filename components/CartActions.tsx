@@ -7,9 +7,10 @@ interface CartActionsProps {
   summary: ComparisonSummary;
   onKrogerPush: () => Promise<void>;
   onAmazonPush: () => Promise<void>;
+  includeAmazon: boolean;
 }
 
-export function CartActions({ summary, onKrogerPush, onAmazonPush }: CartActionsProps) {
+export function CartActions({ summary, onKrogerPush, onAmazonPush, includeAmazon }: CartActionsProps) {
   const [krogerLoading, setKrogerLoading] = useState(false);
   const [amazonLoading, setAmazonLoading] = useState(false);
 
@@ -49,17 +50,23 @@ export function CartActions({ summary, onKrogerPush, onAmazonPush }: CartActions
       </div>
 
       {/* Amazon Action */}
-      <div style={{ flex: 1, textAlign: 'center' }}>
+      <div style={{ flex: 1, textAlign: 'center', opacity: includeAmazon ? 1 : 0.5 }}>
         <button 
           className="btn btn-secondary btn-lg" 
-          style={{ width: '100%', marginBottom: 'var(--space-sm)', border: '1px solid #ff9900', color: '#ff9900' }}
-          disabled={summary.amazonWins === 0 || amazonLoading}
+          style={{ width: '100%', marginBottom: 'var(--space-sm)', border: '1px solid #ff9900', color: '#ff9900', cursor: includeAmazon ? 'pointer' : 'not-allowed' }}
+          disabled={!includeAmazon || summary.amazonWins === 0 || amazonLoading}
           onClick={handleAmazon}
         >
-          {amazonLoading ? '🛒 Pushing...' : `🛒 Add to Amazon Cart (${summary.amazonWins} items)`}
+          {!includeAmazon
+            ? '🔍 Enable Amazon to compare'
+            : amazonLoading
+            ? '🛒 Pushing...'
+            : `🛒 Add to Amazon Cart (${summary.amazonWins} items)`}
         </button>
         <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          Amazon Total: <span style={{ fontWeight: 600 }}>${summary.amazonCartTotal.toFixed(2)}</span>
+          {includeAmazon
+            ? <>Amazon Total: <span style={{ fontWeight: 600 }}>${summary.amazonCartTotal.toFixed(2)}</span></>
+            : <span style={{ color: 'var(--text-muted)' }}>Toggle above to compare Amazon prices</span>}
         </div>
       </div>
     </div>

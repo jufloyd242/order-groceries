@@ -16,6 +16,7 @@ export default function ComparePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [includeAmazon, setIncludeAmazon] = useState(false);
   const { addItem } = useCart();
   const router = useRouter();
 
@@ -30,14 +31,15 @@ export default function ComparePage() {
         setLoading(false);
       }
     } catch (_) {}
-    fetchComparison();
+    fetchComparison(false);
   }, []);
 
-  async function fetchComparison() {
+  async function fetchComparison(withAmazon = false) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/compare');
+      const url = withAmazon ? '/api/compare?amazon=true' : '/api/compare';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         // Filter out purchased items
@@ -133,10 +135,15 @@ export default function ComparePage() {
     return (
       <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-2xl)' }}>
         <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)', animation: 'spin 2s linear infinite' }}>🛒</div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Comparing Prices...</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{includeAmazon ? 'Comparing Prices...' : 'Fetching King Soopers Prices...'}</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)' }}>
-          Searching King Soopers & Amazon for your items.
+          {includeAmazon ? 'Comparing King Soopers & Amazon prices for your items.' : 'Fetching King Soopers prices for your items.'}
         </p>
+        {includeAmazon && (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 'var(--space-xs)' }}>
+            Amazon lookups take 10–20 seconds.
+          </p>
+        )}
       </div>
     );
   }
@@ -147,7 +154,7 @@ export default function ComparePage() {
         <div style={{ fontSize: '3rem', color: 'var(--accent-red)', marginBottom: 'var(--space-md)' }}>⚠️</div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Error Loading Comparison</h1>
         <p style={{ color: 'var(--accent-red)', marginTop: 'var(--space-sm)' }}>{error}</p>
-        <button className="btn btn-primary" onClick={fetchComparison} style={{ marginTop: 'var(--space-md)' }}>Try Again</button>
+        <button className="btn btn-primary" onClick={() => fetchComparison(includeAmazon)} style={{ marginTop: 'var(--space-md)' }}>Try Again</button>
       </div>
     );
   }
@@ -158,18 +165,31 @@ export default function ComparePage() {
         <div>
           <h1 className="page-title">📊 Price Comparison</h1>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Comparing King Soopers & Amazon for {results.length} items.
+            Comparing King Soopers{includeAmazon ? ' & Amazon' : ''} for {results.length} items.
           </p>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            💡 Note: Amazon pricing is currently unavailable. We're comparing King Soopers prices.
-          </p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={includeAmazon}
+                onChange={(e) => {
+                  setIncludeAmazon(e.target.checked);
+                  fetchComparison(e.target.checked);
+                }}
+                style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+              />
+              🚀 Compare with Amazon <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(slower)</span>
+            </label>
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-green)' }}>
-            Total Savings: ${summary?.totalSavings.toFixed(2)}
+            {includeAmazon
+              ? `Total Savings: $${summary?.totalSavings.toFixed(2)}`
+              : `King Soopers Total: $${summary?.krogerCartTotal.toFixed(2)}`}
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Based on current best matches
+            {includeAmazon ? 'Based on current best matches' : 'Toggle Amazon above to compare prices'}
           </div>
         </div>
       </header>
@@ -190,7 +210,8 @@ export default function ComparePage() {
         <CartActions 
           summary={summary} 
           onKrogerPush={handleKrogerPush} 
-          onAmazonPush={handleAmazonPush} 
+          onAmazonPush={handleAmazonPush}
+          includeAmazon={includeAmazon}
         />
       )}
 

@@ -72,7 +72,10 @@ export default function SettingsPage() {
 
       {/* Store Configuration */}
       <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 'var(--space-lg)' }}>Store Configuration</h2>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>Store Configuration</h2>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
+          King Soopers is your primary store for all searches. Amazon comparison can be enabled per-search on the Compare page.
+        </p>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
           <div>

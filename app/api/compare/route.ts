@@ -7,8 +7,11 @@ import { scoreMatches } from '@/lib/matching/fuzzy';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
 import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const compareAmazon = searchParams.get('amazon') === 'true';
+
     const supabase = await createClient();
 
     // 1. Fetch settings (for locationId and zip)
@@ -65,15 +68,17 @@ export async function GET() {
                   console.error(`Kroger search failed for "${query}" at location "${locationId}":`, err);
                   return [] as import('@/types').ProductMatch[];
                 }),
-            hasExactAmazon
-              ? searchAmazon(pref!.preferred_asin!, zipCode, 1).catch((err) => {
-                  console.error(`Amazon ASIN lookup failed for "${pref!.preferred_asin}":`, err);
-                  return [] as import('@/types').ProductMatch[];
-                })
-              : searchAmazon(query, zipCode, 5).catch((err) => {
-                  console.error(`Amazon search failed for "${query}":`, err);
-                  return [] as import('@/types').ProductMatch[];
-                }),
+            compareAmazon
+              ? (hasExactAmazon
+                  ? searchAmazon(pref!.preferred_asin!, zipCode, 1).catch((err) => {
+                      console.error(`Amazon ASIN lookup failed for "${pref!.preferred_asin}":`, err);
+                      return [] as import('@/types').ProductMatch[];
+                    })
+                  : searchAmazon(query, zipCode, 5).catch((err) => {
+                      console.error(`Amazon search failed for "${query}":`, err);
+                      return [] as import('@/types').ProductMatch[];
+                    }))
+              : Promise.resolve([] as import('@/types').ProductMatch[]),
           ]);
 
           // Normalize results: exact lookups return single product or null
