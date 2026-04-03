@@ -87,6 +87,7 @@ export default function Home() {
         body: JSON.stringify({ ids: idsToDelete }),
       });
       setItems((prev) => prev.filter((i) => i.persistent || i.status === 'purchased'));
+      setSelectedIds(new Set());
     } catch (err) {
       console.error('Failed to clear list:', err);
     }
