@@ -146,7 +146,7 @@ export function BatchSearchResults({
                     No products found for &ldquo;{item.raw_text}&rdquo;
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)' }}>
                     {/* KS sub-header when showing both stores */}
                     {activeStore === 'both' && krogerProducts.length > 0 && (
                       <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#b8d962', marginBottom: '-4px', marginTop: '4px' }}>

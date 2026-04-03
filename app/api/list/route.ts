@@ -11,26 +11,30 @@ export async function GET() {
 
   const [{ data: items, error }, { data: prefs }] = await Promise.all([
     supabase.from('list_items').select('*').order('created_at', { ascending: true }),
-    supabase.from('product_preferences').select('generic_name, display_name'),
+    supabase.from('product_preferences').select('generic_name, display_name, preferred_upc, preferred_asin'),
   ]);
 
   if (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
-  // Build a lookup map: generic_name → display_name
-  const prefMap = new Map<string, string>();
+  // Build a lookup map: generic_name → preference data
+  const prefMap = new Map<string, { display_name: string; preferred_upc: string | null; preferred_asin: string | null }>();
   for (const p of (prefs || [])) {
-    prefMap.set(p.generic_name.toLowerCase().trim(), p.display_name);
+    prefMap.set(p.generic_name.toLowerCase().trim(), {
+      display_name: p.display_name,
+      preferred_upc: p.preferred_upc ?? null,
+      preferred_asin: p.preferred_asin ?? null,
+    });
   }
 
   // Enrich each item with its matched product preference
   const enrichedItems = (items || []).map((item) => {
     const key = (item.normalized_text || item.raw_text).toLowerCase().trim();
-    const displayName = prefMap.get(key) ?? null;
+    const pref = prefMap.get(key) ?? null;
     return {
       ...item,
-      preference: displayName ? { display_name: displayName } : null,
+      preference: pref,
     };
   });
 

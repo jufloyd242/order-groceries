@@ -48,7 +48,7 @@ export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, 
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
         {slice.map((product) => {
           const key = `${product.store}-${product.id}`;
           return (

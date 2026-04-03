@@ -28,10 +28,25 @@ export default function SearchPage() {
   const [zipCode, setZipCode] = useState('80516');
   const { addItem } = useCart();
   const [itemRawText, setItemRawText] = useState('');
+  const [itemPreference, setItemPreference] = useState<{ preferred_upc?: string | null; preferred_asin?: string | null; display_name?: string } | null>(null);
   // Selected product keys for cart (checkbox state)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // For single-item mode: which product key is radioed as the remembered preference
   const [rememberedKey, setRememberedKey] = useState<string | null>(null);
+
+  // Auto-fill remembered radio when results load and this item has a saved preference
+  useEffect(() => {
+    if (!itemPreference || rememberedKey) return;
+    const allResults = [...krogerResults, ...amazonResults];
+    if (allResults.length === 0) return;
+    const match = allResults.find((p) => {
+      if (itemPreference.preferred_upc && p.upc && p.upc === itemPreference.preferred_upc) return true;
+      if (itemPreference.preferred_asin && p.asin && p.asin === itemPreference.preferred_asin) return true;
+      if (itemPreference.display_name && p.name.toLowerCase() === itemPreference.display_name.toLowerCase()) return true;
+      return false;
+    });
+    if (match) setRememberedKey(`${match.store}-${match.id}`);
+  }, [krogerResults, amazonResults, itemPreference]); // eslint-disable-line react-hooks/exhaustive-deps
   // For batch mode: per-listItemId remembered product key
   const [batchRememberedKeys, setBatchRememberedKeys] = useState<Map<string, string | null>>(new Map());
   // For batch mode: maps product key → listItemId (to know which section owns it)
@@ -41,16 +56,20 @@ export default function SearchPage() {
   const [batchLoadingIds, setBatchLoadingIds] = useState<Set<string>>(new Set());
   const [cartedItemIds, setCartedItemIds] = useState<Set<string>>(new Set());
 
-  // Fetch the list item's raw_text when itemId is set (used as generic_name for preferences)
+  // Fetch the list item's raw_text + preference when itemId is set
+
   useEffect(() => {
     if (!itemId) return;
     fetch('/api/list')
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          const found = (d.items as Array<{ id: string; raw_text: string }>)
+          const found = (d.items as Array<{ id: string; raw_text: string; preference?: { display_name: string } | null }>)
             ?.find((i) => i.id === itemId);
-          if (found) setItemRawText(found.raw_text);
+          if (found) {
+            setItemRawText(found.raw_text);
+            if (found.preference) setItemPreference(found.preference);
+          }
         }
       })
       .catch(() => {});

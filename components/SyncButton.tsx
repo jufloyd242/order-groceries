@@ -12,7 +12,7 @@ export function SyncButton({ syncing, onSync }: SyncButtonProps) {
       onClick={onSync}
       disabled={syncing}
     >
-      {syncing ? '⏳ Syncing...' : '🔄 Sync Todoist'}
+      {syncing ? '⏳ Syncing...' : '🔄 Sync Grocery List'}
     </button>
   );
 }

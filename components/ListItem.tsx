@@ -8,7 +8,7 @@ export interface ListItemData {
   status: string;
   quantity?: number | null;
   persistent?: boolean;
-  preference?: { display_name: string } | null;
+  preference?: { display_name: string; preferred_upc?: string | null; preferred_asin?: string | null } | null;
 }
 
 interface ListItemProps {
@@ -109,7 +109,7 @@ export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePe
         )}
       </div>
 
-      {/* Persistent pin toggle */}
+      {/* Persistent pin toggle — available for all statuses */}
       <button
         onClick={() => onTogglePersistent(item.id)}
         title={item.persistent ? 'Pinned — survives Clear All (click to unpin)' : 'Pin to keep through Clear All'}
@@ -127,6 +127,7 @@ export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePe
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
+          marginRight: '4px',
         }}
         aria-label={item.persistent ? 'Unpin item' : 'Pin item'}
       >
@@ -134,14 +135,16 @@ export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePe
       </button>
 
       {/* Remove button */}
-      <button
-        className="btn btn-secondary btn-icon"
-        style={{ fontSize: '0.9rem', width: 32, height: 32, flexShrink: 0 }}
-        onClick={() => onRemove(item.id)}
-        aria-label="Remove item"
-      >
-        ✕
-      </button>
+      {!isLocked && (
+        <button
+          className="btn btn-secondary btn-icon"
+          style={{ fontSize: '0.9rem', width: 32, height: 32, flexShrink: 0 }}
+          onClick={() => onRemove(item.id)}
+          aria-label="Remove item"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
