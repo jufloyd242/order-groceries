@@ -43,12 +43,16 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
           .map((i) => i.listItemId!);
         removeItems(result.submittedIds);
         if (submittedListItemIds.length > 0) {
-          fetch('/api/list/cleanup-on-cart', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listItemIds: submittedListItemIds }),
-          }).catch((err) => console.error('Cleanup error:', err));
-          // Notify home page that items became 'purchased'
+          try {
+            await fetch('/api/list/cleanup-on-cart', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ listItemIds: submittedListItemIds }),
+            });
+          } catch (err) {
+            console.error('Cleanup error:', err);
+          }
+          // Notify home page that items became 'purchased' (after DB update)
           window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
         // Revert list items for any cart items that FAILED submission
@@ -90,11 +94,16 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
           .map((i) => i.listItemId!);
         removeItems(result.submittedIds);
         if (listItemIds.length > 0) {
-          fetch('/api/list/cleanup-on-cart', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listItemIds }),
-          }).catch((err) => console.error('Cleanup error:', err));
+          try {
+            await fetch('/api/list/cleanup-on-cart', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ listItemIds }),
+            });
+          } catch (err) {
+            console.error('Cleanup error:', err);
+          }
+          window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
       }
       const r = result.results.find((r) => r.store === 'amazon');
