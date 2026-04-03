@@ -3,6 +3,7 @@ import { searchProducts as searchKroger } from '@/lib/kroger/products';
 import { searchAmazonProducts as searchAmazon } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
 import { ProductMatch } from '@/types';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/search
@@ -14,6 +15,10 @@ import { ProductMatch } from '@/types';
  */
 export async function GET(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const query = request.nextUrl.searchParams.get('q');
     let locationId = request.nextUrl.searchParams.get('locationId');
     const zip = request.nextUrl.searchParams.get('zip') || '80516';

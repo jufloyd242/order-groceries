@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET() {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { data: abbreviations, error } = await supabase
       .from('abbreviations')
       .select('*')
@@ -32,13 +34,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
 
     const { short_form, expansion, is_custom } = body;
 
     const { data, error } = await supabase
       .from('abbreviations')
-      .upsert({ short_form, expansion, is_custom: is_custom ?? true })
+      .upsert({ short_form, expansion, is_custom: is_custom ?? true }, { onConflict: 'user_id,short_form' })
       .select();
 
     if (error) throw error;

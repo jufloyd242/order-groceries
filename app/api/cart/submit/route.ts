@@ -3,6 +3,7 @@ import { getKrogerAccessToken } from '@/lib/kroger/token_manager';
 import { getAuthorizationUrl } from '@/lib/kroger/auth';
 import { addItemsToCart } from '@/lib/kroger/cart';
 import { CartItem, StoreSubmitResult } from '@/types';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/cart/submit
@@ -11,6 +12,10 @@ import { CartItem, StoreSubmitResult } from '@/types';
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { items }: { items: CartItem[] } = await request.json();
 
     if (!items || items.length === 0) {
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // ── King Soopers submission ──────────────────────────────
     if (krogerItems.length > 0) {
-      const token = await getKrogerAccessToken();
+      const token = await getKrogerAccessToken(supabase);
 
       if (!token) {
         const redirectUri =

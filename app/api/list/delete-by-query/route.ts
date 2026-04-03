@@ -18,6 +18,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Find list items where the name contains or matches the query
     const { data: items, error: fetchError } = await supabase

@@ -8,6 +8,8 @@ import { NewProductPreference } from '@/types';
  */
 export async function GET() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data: preferences, error } = await supabase
     .from('product_preferences')
     .select('*')
@@ -32,6 +34,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body: NewProductPreference = await request.json();
 
     if (!body.generic_name || !body.display_name) {
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
         preferred_store: body.preferred_store ?? null,
         preferred_brand: body.preferred_brand ?? null,
         search_override: body.search_override ?? body.display_name,
-      }, { onConflict: 'generic_name' })
+      }, { onConflict: 'user_id,generic_name' })
       .select()
       .single();
 
@@ -82,6 +86,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
     const id = body.id;
 

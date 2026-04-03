@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { searchProducts } from '@/lib/kroger/products';
 import { searchAmazonProducts } from '@/lib/amazon/products';
 import { ProductMatch } from '@/types';
+import { createClient } from '@/lib/supabase/server';
 
 interface BatchQuery {
   itemId: string;
@@ -30,6 +31,10 @@ interface BatchResultItem {
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const body = await request.json();
     const {
       queries,

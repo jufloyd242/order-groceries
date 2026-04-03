@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pullGroceryItems } from '@/lib/todoist/client';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/todoist/sync
@@ -11,6 +12,10 @@ import { pullGroceryItems } from '@/lib/todoist/client';
  */
 export async function GET(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const items = await pullGroceryItems();
 
     return NextResponse.json({

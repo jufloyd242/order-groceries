@@ -1,11 +1,9 @@
-import { createClient } from '@/lib/supabase/server';
-
-const KROGER_AUTH_KEY = 'kroger_user_auth';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface KrogerAuthData {
   access_token: string;
   refresh_token: string;
-  expires_at: number; // timestamp
+  expires_at: number; // Unix ms timestamp
 }
 
 /**
@@ -20,105 +18,106 @@ export class KrogerAuthExpiredError extends Error {
 }
 
 /**
- * Get the current user-level Kroger access token.
- * Refreshes it automatically if expired using the refresh token.
+ * Get the current user's Kroger access token.
+ * Auto-refreshes using the stored refresh token if the access token is expired.
+ *
+ * @param supabase - SSR Supabase client (scoped to the authenticated user via RLS)
  */
-export async function getKrogerAccessToken(): Promise<string | null> {
-  const supabase = await createClient();
-
-  const { data: setting, error } = await supabase
-    .from('app_settings')
-    .select('value')
-    .eq('key', KROGER_AUTH_KEY)
+export async function getKrogerAccessToken(supabase: SupabaseClient): Promise<string | null> {
+  const { data: row, error } = await supabase
+    .from('kroger_auth')
+    .select('access_token, refresh_token, expires_at')
     .maybeSingle();
 
-  if (error || !setting) return null;
+  if (error || !row) return null;
 
+  // Token still valid (1 min buffer)
+  if (Date.now() < row.expires_at - 60_000) {
+    return row.access_token;
+  }
+
+  // Expired — attempt refresh
   try {
-    let authData: KrogerAuthData = JSON.parse(setting.value);
-
-    // Check if expired (with 1 min buffer)
-    if (Date.now() < authData.expires_at - 60_000) {
-      return authData.access_token;
-    }
-
-    // Attempt refresh
-    const refreshed = await refreshToken(authData.refresh_token);
-    if (!refreshed) throw new KrogerAuthExpiredError();
-
+    const refreshed = await refreshKrogerToken(supabase, row.refresh_token);
     return refreshed.access_token;
   } catch (err) {
     if (err instanceof KrogerAuthExpiredError) throw err;
-    console.error('Failed to parse or refresh Kroger auth:', err);
+    console.error('Failed to refresh Kroger auth:', err);
     return null;
   }
 }
 
 /**
- * Save new auth data (token exchange result) into Supabase.
+ * Persist new Kroger auth tokens for the current user.
+ * Uses upsert with conflict on user_id (one row per user in kroger_auth table).
+ *
+ * @param supabase - SSR Supabase client (scoped to the authenticated user via RLS)
  */
-export async function saveKrogerAuth(data: { access_token: string, refresh_token: string, expires_in: number }): Promise<void> {
-  const supabase = await createClient();
-  
-  const authData: KrogerAuthData = {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: Date.now() + (data.expires_in * 1000),
-  };
-
-  const { error } = await supabase.from('app_settings').upsert({
-    key: KROGER_AUTH_KEY,
-    value: JSON.stringify(authData),
-    updated_at: new Date().toISOString()
-  });
+export async function saveKrogerAuth(
+  supabase: SupabaseClient,
+  data: { access_token: string; refresh_token: string; expires_in: number }
+): Promise<void> {
+  const { error } = await supabase.from('kroger_auth').upsert(
+    {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: Date.now() + data.expires_in * 1000,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  );
 
   if (error) throw error;
 }
 
 /**
- * Refresh the Kroger token using a refresh token.
+ * Refresh the Kroger access token using the stored refresh token.
  */
-async function refreshToken(refreshTokenStr: string): Promise<KrogerAuthData | null> {
+async function refreshKrogerToken(
+  supabase: SupabaseClient,
+  refreshTokenStr: string
+): Promise<KrogerAuthData> {
   const clientId = process.env.KROGER_CLIENT_ID;
   const clientSecret = process.env.KROGER_CLIENT_SECRET;
   const KROGER_TOKEN_URL = 'https://api.kroger.com/v1/connect/oauth2/token';
 
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret) {
+    throw new Error('Kroger client credentials not configured.');
+  }
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-  try {
-    const res = await fetch(KROGER_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${credentials}`,
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshTokenStr,
-      }).toString(),
-    });
+  const res = await fetch(KROGER_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${credentials}`,
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshTokenStr,
+    }).toString(),
+  });
 
-    if (!res.ok) {
-      // 401 = revoked refresh token; throw typed error so callers can redirect to OAuth
-      if (res.status === 401) throw new KrogerAuthExpiredError();
-      throw new Error(`Refresh failed: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const updated: KrogerAuthData = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token || refreshTokenStr, // Use new refresh token if provided
-      expires_at: Date.now() + (data.expires_in * 1000),
-    };
-
-    // Store the updated token
-    await saveKrogerAuth(data);
-
-    return updated;
-  } catch (err) {
-    console.error('Kroger refresh token error:', err);
-    return null;
+  if (!res.ok) {
+    if (res.status === 401) throw new KrogerAuthExpiredError();
+    throw new Error(`Kroger token refresh failed: ${res.status}`);
   }
+
+  const data = await res.json();
+  const updated: KrogerAuthData = {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token || refreshTokenStr,
+    expires_at: Date.now() + data.expires_in * 1000,
+  };
+
+  // Persist refreshed tokens
+  await saveKrogerAuth(supabase, {
+    access_token: updated.access_token,
+    refresh_token: updated.refresh_token,
+    expires_in: data.expires_in,
+  });
+
+  return updated;
 }
+

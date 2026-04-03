@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createTask } from '@/lib/todoist/client';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/todoist/task
@@ -12,6 +13,10 @@ import { createTask } from '@/lib/todoist/client';
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { content } = await request.json();
 
     if (!content?.trim()) {

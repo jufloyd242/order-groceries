@@ -13,6 +13,8 @@ export async function PATCH(
   try {
     const { itemId } = await params;
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     if (!itemId) {
       return NextResponse.json(

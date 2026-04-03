@@ -9,6 +9,8 @@ import { AppSettings } from '@/types';
 export async function GET() {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { data, error } = await supabase.from('app_settings').select('*');
 
     if (error) throw error;
@@ -43,6 +45,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
 
     const updates = Object.entries(body).map(([key, value]) => ({
@@ -52,7 +56,7 @@ export async function POST(request: NextRequest) {
     }));
 
     // Upsert multiple rows (assuming key is the primary key)
-    const { error } = await supabase.from('app_settings').upsert(updates);
+    const { error } = await supabase.from('app_settings').upsert(updates, { onConflict: 'user_id,key' });
 
     if (error) throw error;
 

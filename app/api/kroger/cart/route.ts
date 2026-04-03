@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addItemsToCart, CartItemInput } from '@/lib/kroger/cart';
 import { getKrogerAccessToken, KrogerAuthExpiredError } from '@/lib/kroger/token_manager';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/kroger/cart
@@ -10,6 +11,12 @@ import { getKrogerAccessToken, KrogerAuthExpiredError } from '@/lib/kroger/token
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const items: CartItemInput[] = body.items;
 
@@ -17,8 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No items to add.' }, { status: 400 });
     }
 
-    // 1. Get access token from storage (with auto-refresh)
-    const token = await getKrogerAccessToken();
+    // 1. Get access token from this user's kroger_auth row (auto-refreshes if expired)
+    const token = await getKrogerAccessToken(supabase);
 
     if (!token) {
       return NextResponse.json({ 
