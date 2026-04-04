@@ -26,7 +26,7 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
         
         {/* Item Info */}
         <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+          <div style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
             {(selected_kroger?.image_url || selected_amazon?.image_url) ? (
               <Image 
                 src={selected_kroger?.image_url || selected_amazon?.image_url || ''} 
@@ -38,11 +38,15 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '1.5rem' }}>🛒</div>
             )}
           </div>
-          <div>
-            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{item.raw_text}</h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              {selected_kroger?.name || selected_amazon?.name || 'Searching...'}
-            </p>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.raw_text}</h3>
+            {(selected_kroger?.name || selected_amazon?.name) ? (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selected_kroger?.name || selected_amazon?.name}
+              </p>
+            ) : (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontStyle: 'italic' }}>No matches found</p>
+            )}
             {item.status === 'pending' && (
               <span className="badge badge-amber" style={{ height: 'auto', padding: '2px 6px', fontSize: '0.7rem' }}>⚠️ NEEDS PICK</span>
             )}
@@ -50,7 +54,7 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
         </div>
 
         {/* King Soopers Price */}
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', minHeight: '72px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>KING SOOPERS</div>
           {krogerPrice !== null ? (
             <div>
@@ -59,23 +63,27 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
               </div>
               {selected_kroger?.promo_price && (
                 <div style={{ fontSize: '0.7rem', color: 'var(--accent-red)', textDecoration: 'line-through' }}>
-                  ${selected_kroger.price.toFixed(2)}
+                  Was ${selected_kroger.price.toFixed(2)}
                 </div>
+              )}
+              {selected_kroger?.link && (
+                <a href={selected_kroger.link} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', display: 'block', marginTop: '2px' }}>View ↗</a>
               )}
             </div>
           ) : (
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Not Found</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not Found</div>
           )}
           <button 
             onClick={() => onPick(item.id, 'kroger')}
-            style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px' }}
+            style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px', marginTop: '4px' }}
           >
             Change KS ▼
           </button>
         </div>
 
         {/* Amazon Price */}
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', minHeight: '72px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>AMAZON</div>
           {amazonPrice !== null && amazonPrice > 0 ? (
             <div>
@@ -85,13 +93,17 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
               {selected_amazon?.is_prime && (
                 <span className="badge" style={{ backgroundColor: '#232f3e', color: '#ff9900', border: '1px solid #ff9900', fontSize: '0.6rem', padding: '1px 4px' }}>Prime</span>
               )}
+              {selected_amazon?.link && (
+                <a href={selected_amazon.link} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', display: 'block', marginTop: '2px' }}>View ↗</a>
+              )}
             </div>
           ) : (
-            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 500 }}>Price Unavailable</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: '80px' }}>Price Unavailable</div>
           )}
           <button 
             onClick={() => onPick(item.id, 'amazon')}
-            style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px' }}
+            style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px', marginTop: '4px' }}
           >
             Change AMZ ▼
           </button>

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Resolve each item and fetch store products in parallel
-    const comparisonResults: ComparisonResult[] = await Promise.all(
+    const settled = await Promise.allSettled(
       items.map(async (item: ListItem) => {
         try {
           // Resolve item to a specific preference or search query
@@ -98,6 +98,16 @@ export async function GET(request: NextRequest) {
             console.log(`⚠️ Kroger search returned 0 results for "${query}" at location "${locationId}"`);
           }
 
+          // Log raw Amazon results before fuzzy filtering (diagnose score drop-off)
+          if (compareAmazon && amazonProducts.length > 0) {
+            const preScore = scoreMatches(query, amazonProducts);
+            console.log(`[compare] Amazon raw scores for "${query}":`,
+              preScore.slice(0, 5).map((p) => `${p.name} → ${p.match_score} (\$${p.price})`)
+            );
+          } else if (compareAmazon) {
+            console.log(`⚠️ Amazon returned 0 results for "${query}"`);
+          }
+
           // Score products with fuzzy matching and filter out weak matches
           const MIN_MATCH_SCORE = 30;
           const byName = (a: import('@/types').ProductMatch, b: import('@/types').ProductMatch) => a.name.localeCompare(b.name);
@@ -122,7 +132,23 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // 4. Summarize results
+    // Flatten allSettled results — fulfilled items are included, rejected items get
+    // a fallback ComparisonResult so the page always renders something.
+    const comparisonResults: ComparisonResult[] = settled.map((outcome, i) => {
+      if (outcome.status === 'fulfilled') return outcome.value;
+      const item = items[i] as ListItem;
+      console.error(`Error comparing item "${item.raw_text}":`, outcome.reason);
+      return {
+        item,
+        kroger: [],
+        amazon: [],
+        selected_kroger: null,
+        selected_amazon: null,
+        winner: 'tie',
+        savings: 0,
+        price_per_unit: { kroger: null, amazon: null, unit: 'each' },
+      } as ComparisonResult;
+    });
     const summary = summarizeResults(comparisonResults);
 
     return NextResponse.json({

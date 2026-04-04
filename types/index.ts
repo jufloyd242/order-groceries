@@ -55,12 +55,33 @@ export interface ProductMatch {
   unit: string;
   price_per_unit: number;
   image_url: string | null;
-  store: 'kroger' | 'amazon';
-  upc?: string;        // Kroger UPC
-  asin?: string;       // Amazon ASIN
+  store: 'kroger' | 'amazon' | 'walmart' | 'instacart';
+  upc?: string;         // Kroger UPC
+  asin?: string;        // Amazon ASIN
   is_prime?: boolean;   // Amazon Prime eligible
   match_score: number;  // 0-100 fuzzy match confidence
   department?: string | null;  // Kroger product category (e.g. "Dairy")
+  link?: string;        // Direct product page URL
+}
+
+/**
+ * Alias for ProductMatch — the canonical normalized product shape used
+ * throughout the aggregator. All store adapters return this type.
+ * Introduced for architectural clarity; identical to ProductMatch at runtime.
+ */
+export type NormalizedProduct = ProductMatch;
+
+// ─── Store Adapter (plug-and-play aggregator) ─────────────────
+
+export interface StoreSearchOptions {
+  locationId?: string;
+  zipCode?: string;
+  limit?: number;
+}
+
+export interface StoreSearchAdapter {
+  store: ProductMatch['store'];
+  search(query: string, options: StoreSearchOptions): Promise<ProductMatch[]>;
 }
 
 export interface ComparisonResult {
@@ -190,7 +211,7 @@ export interface CartPushResult {
 // ─── Unified Shopping Cart ────────────────────────────────────
 
 /** Supported store identifiers — extend this union to add new stores */
-export type StoreId = 'kroger' | 'amazon';
+export type StoreId = 'kroger' | 'amazon' | 'walmart' | 'instacart';
 
 /** A single item in the unified cart */
 export interface CartItem {

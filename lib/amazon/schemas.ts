@@ -15,17 +15,18 @@ function parseRawPrice(raw: string): number {
 // ─── Price schema ─────────────────────────────────────────────
 
 /**
- * SerpApi price object — can have either `value` (numeric) or `raw` (string like "$12.99").
- * Falls back from value → raw → 0.
+ * SerpApi price object — can have either `value` (numeric), `extracted_value`,
+ * or `raw` (string like "$12.99"). Falls back through value → extracted_value → raw → 0.
  */
 export const SerpApiPriceSchema = z
   .object({
     value: z.number().positive().optional().catch(undefined),
+    extracted_value: z.number().positive().optional().catch(undefined),
     raw: z.string().optional().catch(undefined),
     currency: z.string().optional().catch(undefined),
   })
   .transform((p) => {
-    const value = p.value ?? (p.raw ? parseRawPrice(p.raw) : 0);
+    const value = p.value ?? p.extracted_value ?? (p.raw ? parseRawPrice(p.raw) : 0);
     return { value, currency: p.currency ?? 'USD' };
   });
 
@@ -46,10 +47,12 @@ export const SerpApiAmazonResultSchema = z.object({
 
 // ─── Response schema ──────────────────────────────────────────
 
+// .passthrough() keeps any extra top-level SerpApi fields (search_metadata, etc.)
+// so the parse never fails due to unexpected response shape.
 export const SerpApiResponseSchema = z.object({
   organic_results: z.array(z.unknown()).optional().catch([]),
   error: z.string().optional(),
-});
+}).passthrough();
 
 // ─── Inferred types ───────────────────────────────────────────
 

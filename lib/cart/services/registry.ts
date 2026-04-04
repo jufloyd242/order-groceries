@@ -3,7 +3,7 @@ import { submitKrogerCart } from './kroger';
 import { submitAmazonCart } from './amazon';
 
 /** Map of store → submit function. Add new stores here. */
-const storeServices: Record<StoreId, (items: CartItem[]) => Promise<StoreSubmitResult>> = {
+const storeServices: Partial<Record<StoreId, (items: CartItem[]) => Promise<StoreSubmitResult>>> = {
   kroger: submitKrogerCart,
   amazon: submitAmazonCart,
 };
@@ -21,7 +21,13 @@ export async function submitCart(items: CartItem[]): Promise<CartSubmitResult> {
 
   const storeIds = Object.keys(byStore) as StoreId[];
   const results = await Promise.all(
-    storeIds.map((storeId) => storeServices[storeId](byStore[storeId]!))
+    storeIds.map((storeId) => {
+      const submit = storeServices[storeId];
+      if (!submit) {
+        return Promise.resolve<StoreSubmitResult>({ store: storeId, success: false, itemsAdded: 0, itemsFailed: byStore[storeId]!.length, errors: [`No cart service registered for store: ${storeId}`] });
+      }
+      return submit(byStore[storeId]!);
+    })
   );
 
   const submittedIds: string[] = [];

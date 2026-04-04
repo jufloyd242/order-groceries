@@ -224,6 +224,9 @@ function mapKrogerProduct(product: KrogerProduct): ProductMatch {
     store: 'kroger',
     upc: product.upc,
     department: product.categories?.[0] ?? null,
+    link: product.upc
+      ? `https://www.kingsoopers.com/p/item/${product.upc}`
+      : `https://www.kingsoopers.com/p/${product.productId}`,
     match_score: 0, // Set by fuzzy matcher
   };
 }

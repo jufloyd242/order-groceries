@@ -22,10 +22,11 @@ export async function searchAmazonProducts(
 
   const params = new URLSearchParams({
     engine: 'amazon',
+    type: 'search',
     amazon_domain: 'amazon.com',
     k: query,
     api_key: apiKey,
-    // SerpApi supports zip_code for localized results
+    zip_code: zipCode,
   });
 
   const res = await fetch(`${SERPAPI_BASE}?${params}`, {
@@ -38,6 +39,16 @@ export async function searchAmazonProducts(
   }
 
   const raw = await res.json();
+
+  // Log raw response so we can diagnose missing/zero prices during development
+  console.log(`[Amazon] Raw SerpApi response for "${query}" (${(raw.organic_results ?? []).length} organic results):`,
+    JSON.stringify((raw.organic_results ?? []).slice(0, 3).map((r: Record<string, unknown>) => ({
+      title: r.title,
+      asin: r.asin,
+      price: r.price,
+    })), null, 2)
+  );
+
   const parsed = SerpApiResponseSchema.safeParse(raw);
 
   if (!parsed.success) {
@@ -95,6 +106,7 @@ function mapAmazonProduct(result: SerpApiAmazonResult): ProductMatch {
     store: 'amazon',
     asin: result.asin,
     is_prime: result.is_prime ?? false,
+    link: result.link || undefined,
     match_score: 0, // Set by fuzzy matcher
   };
 }
