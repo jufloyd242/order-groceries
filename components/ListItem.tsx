@@ -8,6 +8,7 @@ export interface ListItemData {
   status: string;
   quantity?: number | null;
   persistent?: boolean;
+  department?: string | null;
   preference?: { display_name: string; preferred_upc?: string | null; preferred_asin?: string | null } | null;
 }
 
@@ -18,9 +19,10 @@ interface ListItemProps {
   selected: boolean;
   onToggle: (id: string) => void;
   onTogglePersistent: (id: string) => void;
+  onQuantityChange: (id: string, qty: number) => void;
 }
 
-export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePersistent }: ListItemProps) {
+export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePersistent, onQuantityChange }: ListItemProps) {
   const isCarted = item.status === 'carted';
   const isPurchased = item.status === 'purchased';
   const isLocked = isCarted || isPurchased;
@@ -62,21 +64,69 @@ export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePe
           >
             {item.raw_text}
           </div>
-          {item.quantity && item.quantity > 1 && (
-            <span className="badge badge-blue" style={{ fontSize: '0.75rem' }}>
-              ×{item.quantity}
-            </span>
-          )}
-          {isCarted && (
-            <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' }}>
-              ✅ In Cart
-            </span>
-          )}
-          {isPurchased && (
-            <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }}>
-              Purchased
-            </span>
-          )}
+            {/* Quantity stepper (non-locked) or read-only badge (locked) */}
+            {!isLocked ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                <button
+                  onClick={() => onQuantityChange(item.id, Math.max(1, (item.quantity ?? 1) - 1))}
+                  disabled={(item.quantity ?? 1) <= 1}
+                  aria-label="Decrease quantity"
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '4px',
+                    color: (item.quantity ?? 1) <= 1 ? '#334155' : 'var(--text-secondary)',
+                    fontSize: '0.8rem',
+                    cursor: (item.quantity ?? 1) <= 1 ? 'default' : 'pointer',
+                    width: 22,
+                    height: 22,
+                    lineHeight: 1,
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  −
+                </button>
+                <span style={{ minWidth: 18, textAlign: 'center', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {item.quantity ?? 1}
+                </span>
+                <button
+                  onClick={() => onQuantityChange(item.id, (item.quantity ?? 1) + 1)}
+                  aria-label="Increase quantity"
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '4px',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    width: 22,
+                    height: 22,
+                    lineHeight: 1,
+                    padding: 0,
+                    flexShrink: 0,
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              item.quantity && item.quantity > 1 && (
+                <span className="badge badge-blue" style={{ fontSize: '0.75rem' }}>
+                  ×{item.quantity}
+                </span>
+              )
+            )}
+            {isCarted && (
+              <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' }}>
+                ✅ In Cart
+              </span>
+            )}
+            {isPurchased && (
+              <span className="badge" style={{ fontSize: '0.75rem', backgroundColor: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }}>
+                Purchased
+              </span>
+            )}
         </div>
 
         {/* Sub-caption: preference mapping (all items) + Todoist badge (active only) */}

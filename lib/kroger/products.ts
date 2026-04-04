@@ -223,6 +223,7 @@ function mapKrogerProduct(product: KrogerProduct): ProductMatch {
     image_url: imageUrl,
     store: 'kroger',
     upc: product.upc,
+    department: product.categories?.[0] ?? null,
     match_score: 0, // Set by fuzzy matcher
   };
 }

@@ -116,7 +116,11 @@ export default function PickItemPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: item.id,
-          updates: { quantity, status: 'matched' },
+          updates: {
+            quantity,
+            status: 'matched',
+            ...(selected.department ? { department: selected.department } : {}),
+          },
         }),
       });
 

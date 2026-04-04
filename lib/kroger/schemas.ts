@@ -47,6 +47,7 @@ export const KrogerProductSchema = z.object({
   upc: z.string().catch(''),
   description: z.string().catch('Unknown Product'),
   brand: z.string().catch(''),
+  categories: z.array(z.string()).catch([]),
   items: z.array(KrogerItemSchema).catch([]),
   images: z.array(KrogerImageSchema).catch([]),
 });

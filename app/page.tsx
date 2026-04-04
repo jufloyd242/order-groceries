@@ -116,6 +116,20 @@ export default function Home() {
     });
   }
 
+  function handleQuantityChange(id: string, qty: number) {
+    // Optimistic
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, quantity: qty } : i));
+    fetch('/api/list', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, updates: { quantity: qty } }),
+    }).catch((err) => {
+      console.error('Failed to update quantity:', err);
+      // Roll back individual item (re-fetch to get real value)
+      fetchItems();
+    });
+  }
+
   async function reorderItem(id: string) {
     try {
       await fetch('/api/list', {
@@ -145,19 +159,33 @@ export default function Home() {
   }
 
   async function restorePinned() {
+    // Optimistic: immediately flip pinned-purchased items to pending
+    const snapshot = items;
+    setItems((prev) =>
+      prev.map((i) =>
+        i.persistent && i.status === 'purchased' ? { ...i, status: 'pending' } : i
+      )
+    );
     setRestoringPinned(true);
     try {
       const res = await fetch('/api/list/restore-pinned', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        await fetchItems();
         if (data.restored > 0) {
           setSyncMessage(`📌 Restored ${data.restored} pinned item${data.restored !== 1 ? 's' : ''} to your list`);
           setTimeout(() => setSyncMessage(''), 3000);
         }
+      } else {
+        // API reported failure — roll back
+        setItems(snapshot);
+        setSyncMessage(`❌ Failed to restore: ${data.error || 'Unknown error'}`);
+        setTimeout(() => setSyncMessage(''), 4000);
       }
     } catch (err) {
       console.error('Failed to restore pinned items:', err);
+      setItems(snapshot);
+      setSyncMessage('❌ Could not reach server — please try again.');
+      setTimeout(() => setSyncMessage(''), 4000);
     } finally {
       setRestoringPinned(false);
     }
@@ -210,6 +238,24 @@ export default function Home() {
   const regularActiveItems = items.filter((i) => !i.persistent && i.status !== 'purchased');
   const todaysListItems = [...pinnedItems, ...regularActiveItems];
   const purchasedItems = items.filter((i) => !i.persistent && i.status === 'purchased');
+
+  // Aisle grouping: only shown once at least one item has a department set
+  const hasDeptData = regularActiveItems.some((i) => i.department);
+  const DEPT_ORDER = ['Produce', 'Bakery', 'Deli', 'Meat', 'Seafood', 'Dairy', 'Frozen',
+    'Beverages', 'Snacks', 'Pantry', 'Household', 'Personal Care', 'Pet Care', 'Other'];
+  const deptGroups = hasDeptData
+    ? regularActiveItems.reduce((acc, item) => {
+        const key = item.department || 'Other';
+        (acc[key] ??= []).push(item);
+        return acc;
+      }, {} as Record<string, typeof regularActiveItems>)
+    : null;
+  const sortedDepts = deptGroups
+    ? Object.keys(deptGroups).sort((a, b) => {
+        const ai = DEPT_ORDER.indexOf(a); const bi = DEPT_ORDER.indexOf(b);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      })
+    : [];
 
   const selectableIds = todaysListItems
     .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
@@ -365,6 +411,7 @@ export default function Home() {
                 selected={selectedIds.has(item.id)}
                 onToggle={toggleSelect}
                 onTogglePersistent={togglePersistent}
+                onQuantityChange={handleQuantityChange}
               />
             ))}
 
@@ -377,18 +424,47 @@ export default function Home() {
               </div>
             )}
 
-            {/* Regular (non-pinned) active items */}
-            {regularActiveItems.map((item, index) => (
-              <ListItem
-                key={item.id}
-                item={item}
-                index={pinnedItems.length + index}
-                onRemove={removeItem}
-                selected={selectedIds.has(item.id)}
-                onToggle={toggleSelect}
-                onTogglePersistent={togglePersistent}
-              />
-            ))}
+            {/* Regular (non-pinned) active items — grouped by aisle when dept data exists */}
+            {deptGroups ? (
+              sortedDepts.map((dept) => (
+                <div key={dept}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '8px 0 2px', margin: '4px 0 2px',
+                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                    <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                      {dept}
+                    </span>
+                  </div>
+                  {deptGroups[dept].map((item, index) => (
+                    <ListItem
+                      key={item.id}
+                      item={item}
+                      index={pinnedItems.length + index}
+                      onRemove={removeItem}
+                      selected={selectedIds.has(item.id)}
+                      onToggle={toggleSelect}
+                      onTogglePersistent={togglePersistent}
+                      onQuantityChange={handleQuantityChange}
+                    />
+                  ))}
+                </div>
+              ))
+            ) : (
+              regularActiveItems.map((item, index) => (
+                <ListItem
+                  key={item.id}
+                  item={item}
+                  index={pinnedItems.length + index}
+                  onRemove={removeItem}
+                  selected={selectedIds.has(item.id)}
+                  onToggle={toggleSelect}
+                  onTogglePersistent={togglePersistent}
+                  onQuantityChange={handleQuantityChange}
+                />
+              ))
+            )}
           </div>
         </div>
       )}

@@ -60,6 +60,7 @@ export interface ProductMatch {
   asin?: string;       // Amazon ASIN
   is_prime?: boolean;   // Amazon Prime eligible
   match_score: number;  // 0-100 fuzzy match confidence
+  department?: string | null;  // Kroger product category (e.g. "Dairy")
 }
 
 export interface ComparisonResult {
