@@ -57,8 +57,17 @@ export async function saveKrogerAuth(
   supabase: SupabaseClient,
   data: { access_token: string; refresh_token: string; expires_in: number }
 ): Promise<void> {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    console.error('[saveKrogerAuth] No authenticated user:', userError);
+    throw new Error('Cannot save Kroger auth — no active session');
+  }
+
+  console.log('[saveKrogerAuth] Upserting for user', user.id);
+
   const { error } = await supabase.from('kroger_auth').upsert(
     {
+      user_id: user.id,
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       expires_at: Date.now() + data.expires_in * 1000,
@@ -67,7 +76,17 @@ export async function saveKrogerAuth(
     { onConflict: 'user_id' }
   );
 
-  if (error) throw error;
+  if (error) {
+    console.error('[saveKrogerAuth] Upsert failed:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw error;
+  }
+
+  console.log('[saveKrogerAuth] Saved successfully for user', user.id);
 }
 
 /**

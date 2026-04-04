@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
     const zip = searchParams.get('zip') || process.env.DEFAULT_ZIP_CODE || '80516';
     const chain = searchParams.get('chain') || process.env.DEFAULT_STORE_CHAIN || 'King Soopers';
 
+    console.log(`[/api/kroger/locations] Searching for zip=${zip} chain=${chain}`);
+
     const locations = await searchLocations(zip, chain);
+
+    console.log(`[/api/kroger/locations] Found ${locations.length} location(s)`);
 
     return NextResponse.json({
       success: true,

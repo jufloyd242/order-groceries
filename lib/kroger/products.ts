@@ -107,6 +107,24 @@ export async function getProductByUpc(
 /**
  * Search for King Soopers store locations near a zip code.
  */
+// Kroger's /locations API uses internal chain codes (not display names).
+// Map human-readable names (used in app settings) to their API codes.
+const KROGER_CHAIN_CODES: Record<string, string> = {
+  'king soopers': 'KINGSOOPERS',
+  'kroger': 'KROGER',
+  'fred meyer': 'FREDMEYER',
+  'ralphs': 'RALPHS',
+  'marianos': 'MARIANOS',
+  'harris teeter': 'HARRISTEETER',
+  'smith\'s': 'SMITHS',
+  'pick n save': 'PICKNSAVE',
+  'dillons': 'DILLONS',
+  'gerbes': 'GERBES',
+  'pay less': 'PAYLESS',
+  'city market': 'CITYMARKET',
+  'ruler foods': 'RULERFOODS',
+};
+
 export async function searchLocations(
   zipCode: string,
   chain: string = 'King Soopers'
@@ -122,10 +140,16 @@ export async function searchLocations(
 > {
   const token = await getClientCredentialsToken();
 
+  // Normalize chain display name to Kroger's internal chain code
+  const chainCode = KROGER_CHAIN_CODES[chain.toLowerCase()] ?? chain.toUpperCase().replace(/\s+/g, '');
+
   const params = new URLSearchParams({
-    'filter.chain': chain,
+    'filter.chain': chainCode,
     'filter.zipCode.near': zipCode,
+    'filter.radiusInMiles': '10',
   });
+
+  console.log(`[searchLocations] Requesting: GET ${KROGER_API_BASE}/locations?${params}`);
 
   const res = await fetch(`${KROGER_API_BASE}/locations?${params}`, {
     headers: {
@@ -134,27 +158,29 @@ export async function searchLocations(
     },
   });
 
+  const rawBody = await res.text();
+  console.log(`[searchLocations] Response status: ${res.status}`);
+  console.log(`[searchLocations] Response body (first 500 chars): ${rawBody.slice(0, 500)}`);
+
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Kroger location search failed: ${res.status} ${body}`);
+    throw new Error(`Kroger location search failed: ${res.status} ${rawBody}`);
   }
 
-  const data = await res.json();
+  let data: { data?: Array<{ locationId: string; name: string; address: { addressLine1: string; city: string; state: string; zipCode: string } }> };
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    throw new Error(`Kroger location search returned invalid JSON: ${rawBody.slice(0, 200)}`);
+  }
 
-  return data.data.map(
-    (loc: {
-      locationId: string;
-      name: string;
-      address: { addressLine1: string; city: string; state: string; zipCode: string };
-    }) => ({
-      locationId: loc.locationId,
-      name: loc.name,
-      address: loc.address.addressLine1,
-      city: loc.address.city,
-      state: loc.address.state,
-      zipCode: loc.address.zipCode,
-    })
-  );
+  return (data?.data ?? []).map((loc) => ({
+    locationId: loc.locationId,
+    name: loc.name,
+    address: loc.address?.addressLine1 ?? '',
+    city: loc.address?.city ?? '',
+    state: loc.address?.state ?? '',
+    zipCode: loc.address?.zipCode ?? '',
+  }));
 }
 
 /**

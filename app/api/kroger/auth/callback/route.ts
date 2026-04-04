@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(`${origin}/settings?success=kroger_auth`);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Kroger callback error:', message);
+    console.error('[kroger/callback] Caught error:', err);
+    const message = err instanceof Error ? err.message : JSON.stringify(err);
     return NextResponse.redirect(`${origin}/settings?error=${encodeURIComponent(message)}`);
   }
 }
