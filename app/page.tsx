@@ -297,6 +297,12 @@ export default function Home() {
         </div>
       )}
 
+      {/* Selection Mode bar — shown above the list when items are checked */}
+      <BatchActionBar
+        selectedCount={selectedIds.size}
+        onSearch={handleBatchSearch}
+      />
+
       {/* Add Item Input */}
       <AddItemBar onAdd={addItems} bulkMode={bulkMode} setBulkMode={setBulkMode} />
 
@@ -485,12 +491,6 @@ export default function Home() {
           </button>
         </div>
       )}
-
-      {/* Batch action bar (sticky bottom) */}
-      <BatchActionBar
-        selectedCount={selectedIds.size}
-        onSearch={handleBatchSearch}
-      />
 
       {/* Footer */}
       <footer

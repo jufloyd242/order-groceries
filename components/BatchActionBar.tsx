@@ -20,20 +20,28 @@ export function BatchActionBar({ selectedCount, onSearch }: BatchActionBarProps)
   return (
     <div
       style={{
-        position: 'fixed',
-        bottom: 0,
+        position: 'sticky',
+        top: 0,
         left: 0,
         right: 0,
-        background: 'rgba(10, 10, 20, 0.95)',
-        backdropFilter: 'blur(12px)',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
-        padding: '14px 20px',
+        background: 'rgba(10, 10, 20, 0.85)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        padding: '10px 20px',
         display: 'flex',
         alignItems: 'center',
         gap: '16px',
-        zIndex: 50,
+        zIndex: 40,
+        animation: 'slideDown 0.18s ease-out',
       }}
     >
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
       {/* Count badge */}
       <span
         style={{
