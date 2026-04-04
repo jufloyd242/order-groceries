@@ -98,8 +98,19 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
                   style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', display: 'block', marginTop: '2px' }}>View ↗</a>
               )}
             </div>
+          ) : selected_amazon ? (
+            /* Product was found but price is unavailable (common on SerpApi free tier) */
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              <div style={{ fontStyle: 'italic', marginBottom: '4px' }}>Price unavailable</div>
+              {selected_amazon.link && (
+                <a href={selected_amazon.link} target="_blank" rel="noopener noreferrer"
+                  style={{ color: '#ff9900', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>
+                  Check on Amazon ↗
+                </a>
+              )}
+            </div>
           ) : (
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', maxWidth: '80px' }}>Price Unavailable</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not searched</div>
           )}
           <button 
             onClick={() => onPick(item.id, 'amazon')}

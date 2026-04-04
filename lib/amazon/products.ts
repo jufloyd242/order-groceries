@@ -67,7 +67,9 @@ export async function searchAmazonProducts(
       const result = SerpApiAmazonResultSchema.safeParse(unknown);
       return result.success ? mapAmazonProduct(result.data) : null;
     })
-    .filter((p): p is ProductMatch => p !== null && p.price > 0);
+    // Only drop items that failed schema parsing — price=0 is kept so the
+    // UI can show "Check Amazon for Price" rather than hiding the product.
+    .filter((p): p is ProductMatch => p !== null);
 }
 
 /**

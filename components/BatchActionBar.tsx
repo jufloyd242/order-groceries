@@ -5,10 +5,11 @@ import { useState } from 'react';
 interface BatchActionBarProps {
   selectedCount: number;
   onSearch: (stores: ('kroger' | 'amazon')[]) => void;
+  onCompare: (withAmazon: boolean) => void;
   onClear: () => void;
 }
 
-export function BatchActionBar({ selectedCount, onSearch, onClear }: BatchActionBarProps) {
+export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: BatchActionBarProps) {
   const [kroger, setKroger] = useState(true);
   const [amazon, setAmazon] = useState(false);
 
@@ -144,6 +145,24 @@ export function BatchActionBar({ selectedCount, onSearch, onClear }: BatchAction
         }}
       >
         🔍 Search {selectedCount} item{selectedCount !== 1 ? 's' : ''}
+      </button>
+
+      {/* Compare button — requires at least one second store (Amazon) to be meaningful */}
+      <button
+        className="btn btn-secondary"
+        disabled={!amazon}
+        onClick={() => onCompare(amazon)}
+        style={{
+          padding: '10px 20px',
+          fontSize: '0.9rem',
+          fontWeight: 700,
+          flexShrink: 0,
+          border: '1px solid rgba(255,255,255,0.2)',
+          opacity: amazon ? 1 : 0.4,
+          cursor: amazon ? 'pointer' : 'not-allowed',
+        }}
+      >
+        📊 Compare Prices
       </button>
     </div>
   );

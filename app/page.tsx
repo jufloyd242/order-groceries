@@ -289,6 +289,14 @@ export default function Home() {
     router.push(`/search?mode=batch&ids=${encodeURIComponent(ids)}&stores=${encodeURIComponent(storeParam)}`);
   }
 
+  function handleBatchCompare(withAmazon: boolean) {
+    const selected = todaysListItems.filter((i) => selectedIds.has(i.id));
+    if (selected.length === 0) return;
+    const ids = selected.map((i) => i.id).join(',');
+    const url = `/compare?ids=${encodeURIComponent(ids)}${withAmazon ? '&amazon=true' : ''}`;
+    router.push(url);
+  }
+
   const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'matched').length;
   const cartedCount = items.filter((i) => i.status === 'carted').length;
 
@@ -349,6 +357,7 @@ export default function Home() {
       <BatchActionBar
         selectedCount={selectedIds.size}
         onSearch={handleBatchSearch}
+        onCompare={handleBatchCompare}
         onClear={() => setSelectedIds(new Set())}
       />
 

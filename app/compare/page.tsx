@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
 
@@ -14,20 +14,31 @@ export default function ComparePage() {
   const [error, setError] = useState<string | null>(null);
   const [includeAmazon, setIncludeAmazon] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Items filter from home page selection (e.g. /compare?ids=1,2,3)
+  const idsParam = searchParams.get('ids') || '';
+  const filteredIds = idsParam ? new Set(idsParam.split(',').filter(Boolean)) : null;
+  // Amazon flag can be pre-set from the action bar
+  const amazonParam = searchParams.get('amazon') === 'true';
 
   useEffect(() => {
-    // Restore cached results immediately so the page isn't blank while fetching
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const { results: cachedResults, summary: cachedSummary } = JSON.parse(cached);
-        setResults(cachedResults);
-        setSummary(cachedSummary);
-        setLoading(false);
-      }
-    } catch (_) {}
-    fetchComparison(false);
-  }, []);
+    const withAmazon = amazonParam;
+    setIncludeAmazon(withAmazon);
+    // Only restore cache when showing the full list (no id filter)
+    if (!filteredIds) {
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { results: cachedResults, summary: cachedSummary } = JSON.parse(cached);
+          setResults(cachedResults);
+          setSummary(cachedSummary);
+          setLoading(false);
+        }
+      } catch (_) {}
+    }
+    fetchComparison(withAmazon);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchComparison(withAmazon = false) {
     setLoading(true);
@@ -37,8 +48,13 @@ export default function ComparePage() {
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        // Filter out purchased items
-        const filtered = data.results.filter((r: ComparisonResult) => r.item.status !== 'purchased');
+        // Filter out purchased items, then apply id filter if coming from home page selection
+        let filtered: ComparisonResult[] = data.results.filter(
+          (r: ComparisonResult) => r.item.status !== 'purchased'
+        );
+        if (filteredIds && filteredIds.size > 0) {
+          filtered = filtered.filter((r: ComparisonResult) => filteredIds.has(r.item.id));
+        }
         
         // Recalculate summary for filtered results
         const summary = {
@@ -54,10 +70,12 @@ export default function ComparePage() {
         
         setResults(filtered);
         setSummary(summary);
-        // Cache results for instant restore when navigating back
-        try {
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ results: filtered, summary: summary }));
-        } catch (_) {}
+        // Only cache when showing the full list (no id filter active)
+        if (!filteredIds) {
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ results: filtered, summary }));
+          } catch (_) {}
+        }
       } else {
         setError(data.error || 'Failed to fetch comparison');
       }
@@ -108,7 +126,8 @@ export default function ComparePage() {
         <div>
           <h1 className="page-title">📊 Price Comparison</h1>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Comparing King Soopers{includeAmazon ? ' & Amazon' : ''} for {results.length} items.
+            Comparing King Soopers{includeAmazon ? ' & Amazon' : ''} for{' '}
+            {filteredIds ? `${results.length} selected item${results.length !== 1 ? 's' : ''}` : `${results.length} item${results.length !== 1 ? 's' : ''}`}.
           </p>
           <div style={{ marginTop: '0.75rem' }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
