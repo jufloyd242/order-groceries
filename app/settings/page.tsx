@@ -23,10 +23,11 @@ export default function SettingsPage() {
   const [abbreviations, setAbbreviations] = useState<Abbreviation[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
   const [krogerStatus, setKrogerStatus] = useState<KrogerStatus | null>(null);
   const [unlinking, setUnlinking] = useState(false);
 
-  // Location picker state
+  // Location picker state (local only — not persisted as a setting)
   const [locationSearchZip, setLocationSearchZip] = useState('');
   const [locationSearching, setLocationSearching] = useState(false);
   const [locationResults, setLocationResults] = useState<StoreLocation[]>([]);
@@ -109,7 +110,7 @@ export default function SettingsPage() {
   }
 
   async function handleLocationSearch() {
-    const zip = locationSearchZip.trim() || settings?.default_zip_code || '';
+    const zip = locationSearchZip.trim();
     if (!zip) { setLocationError('Enter a zip code to search.'); return; }
     setLocationSearching(true);
     setLocationError('');
@@ -131,10 +132,28 @@ export default function SettingsPage() {
     }
   }
 
-  function handleSelectLocation(loc: StoreLocation) {
+  async function handleSelectLocation(loc: StoreLocation) {
     setSettings(prev => prev ? { ...prev, kroger_location_id: loc.locationId, kroger_store_name: loc.name } : null);
     setLocationResults([]);
     setLocationSearchZip('');
+    setSavingLocation(true);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kroger_location_id: loc.locationId, kroger_store_name: loc.name }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMessage({ type: 'success', text: `✅ Store set to ${loc.name}` });
+      } else {
+        setStatusMessage({ type: 'error', text: `❌ Failed to save store: ${data.error}` });
+      }
+    } catch {
+      setStatusMessage({ type: 'error', text: '❌ Failed to save store.' });
+    } finally {
+      setSavingLocation(false);
+    }
   }
 
   if (loading) {
@@ -233,39 +252,32 @@ export default function SettingsPage() {
           Set your preferred King Soopers location for inventory checks and pricing.
         </p>
 
-        {/* Current location ID */}
-        <div style={{ marginBottom: 'var(--space-lg)' }}>
-          <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Location ID
-          </label>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <input
-              type="text"
-              className="ui-input"
-              value={settings?.kroger_location_id || ''}
-              onChange={(e) => setSettings(prev => prev ? { ...prev, kroger_location_id: e.target.value } : null)}
-              placeholder="e.g. 02900520"
-              style={{ maxWidth: '220px' }}
-            />
-            {settings?.kroger_location_id && (
-              <span style={{ fontSize: '0.78rem', color: '#4ade80' }}>✓ Set</span>
-            )}
-          </div>
-          {settings?.kroger_store_name && (
-            <p style={{ marginTop: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              📍 {settings.kroger_store_name}
-            </p>
+        {/* Current store display (read-only) */}
+        <div style={{ marginBottom: 'var(--space-lg)', padding: '12px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          {settings?.kroger_store_name ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>📍 {settings.kroger_store_name}</span>
+                <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 600 }}>✓ Selected</span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'monospace' }}>
+                ID: {settings.kroger_location_id}
+              </div>
+            </>
+          ) : (
+            <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No store selected — search below to pick one.</span>
           )}
+          {savingLocation && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '8px' }}>Saving…</span>}
         </div>
 
         {/* Location search */}
         <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>Search for a store:</p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>Search by zip code:</p>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
             <input
               type="text"
               className="ui-input"
-              placeholder={`Zip code (e.g. ${settings?.default_zip_code || '80516'})`}
+              placeholder="Zip code (e.g. 80516)"
               value={locationSearchZip}
               onChange={(e) => setLocationSearchZip(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLocationSearch()}
@@ -291,6 +303,7 @@ export default function SettingsPage() {
                 <button
                   key={loc.locationId}
                   onClick={() => handleSelectLocation(loc)}
+                  disabled={savingLocation}
                   style={{
                     textAlign: 'left',
                     background: settings?.kroger_location_id === loc.locationId
@@ -301,7 +314,7 @@ export default function SettingsPage() {
                       : 'rgba(255,255,255,0.07)'}`,
                     borderRadius: '6px',
                     padding: '10px 12px',
-                    cursor: 'pointer',
+                    cursor: savingLocation ? 'default' : 'pointer',
                     color: 'var(--text-primary)',
                     transition: 'background 0.15s',
                   }}
@@ -319,44 +332,11 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <button
-          className="btn btn-primary btn-lg"
-          style={{ marginTop: 'var(--space-lg)' }}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Save Location'}
-        </button>
       </section>
 
-      {/* ── General Settings ─────────────────────────────────── */}
+      {/* ── Preferences ──────────────────────────────────────── */}
       <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>General</h2>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)', marginBottom: 'var(--space-lg)' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Default Zip Code</label>
-            <input
-              type="text"
-              className="ui-input"
-              value={settings?.default_zip_code || ''}
-              onChange={(e) => setSettings(prev => prev ? { ...prev, default_zip_code: e.target.value } : null)}
-            />
-          </div>
-        </div>
-
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Save Settings'}
-        </button>
-      </section>
-
-      {/* ── Cart Cleanup ─────────────────────────────────────── */}
-      <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>🗑️ Cart Cleanup</h2>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>⚙️ Preferences</h2>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
           When enabled, items are automatically removed from your list as soon as they are added to the shopping cart.
         </p>
@@ -403,7 +383,7 @@ export default function SettingsPage() {
           onClick={handleSave}
           disabled={saving}
         >
-          {saving ? 'Saving…' : 'Save Settings'}
+          {saving ? 'Saving…' : 'Save Preferences'}
         </button>
       </section>
     </div>
