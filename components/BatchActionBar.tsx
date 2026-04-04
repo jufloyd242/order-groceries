@@ -5,9 +5,10 @@ import { useState } from 'react';
 interface BatchActionBarProps {
   selectedCount: number;
   onSearch: (stores: ('kroger' | 'amazon')[]) => void;
+  onClear: () => void;
 }
 
-export function BatchActionBar({ selectedCount, onSearch }: BatchActionBarProps) {
+export function BatchActionBar({ selectedCount, onSearch, onClear }: BatchActionBarProps) {
   const [kroger, setKroger] = useState(true);
   const [amazon, setAmazon] = useState(false);
 
@@ -42,6 +43,27 @@ export function BatchActionBar({ selectedCount, onSearch }: BatchActionBarProps)
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+
+      {/* Clear selection button */}
+      <button
+        onClick={onClear}
+        title="Clear selection"
+        style={{
+          background: 'none',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '6px',
+          color: 'var(--text-muted)',
+          fontSize: '0.9rem',
+          cursor: 'pointer',
+          padding: '4px 8px',
+          flexShrink: 0,
+          lineHeight: 1,
+          transition: 'all 0.15s',
+        }}
+        aria-label="Clear selection"
+      >
+        ✕
+      </button>
       {/* Count badge */}
       <span
         style={{

@@ -79,26 +79,24 @@ export function ListItem({ item, index, onRemove, selected, onToggle, onTogglePe
           )}
         </div>
 
-        {/* Preference mapping sub-text (only for active items) */}
-        {!isLocked && (
+        {/* Sub-caption: preference mapping (all items) + Todoist badge (active only) */}
+        {(item.preference || (!isLocked && item.source === 'todoist')) && (
           <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {item.preference ? (
+            {item.preference && (
               <>
                 <span style={{ fontSize: '0.72rem', color: '#4ade80', opacity: 0.85 }}>
-                  📦 {item.preference.display_name}
+                  Mapped to: {item.preference.display_name}
                 </span>
-                <a
-                  href={`/search?itemId=${item.id}&q=${searchQuery}`}
-                  title="Update preference"
-                  style={{ fontSize: '0.68rem', color: '#84cc16', textDecoration: 'none', lineHeight: 1 }}
-                >
-                  ✏️
-                </a>
+                {!isLocked && (
+                  <a
+                    href={`/search?itemId=${item.id}&q=${searchQuery}`}
+                    title="Update preference"
+                    style={{ fontSize: '0.68rem', color: '#84cc16', textDecoration: 'none', lineHeight: 1 }}
+                  >
+                    ✏️
+                  </a>
+                )}
               </>
-            ) : (
-              <span style={{ fontSize: '0.72rem', color: '#f59e0b', opacity: 0.7 }}>
-                ⚠️ No preference saved
-              </span>
             )}
             {!isLocked && item.source === 'todoist' && (
               <span className="badge badge-blue" style={{ fontSize: '0.68rem' }}>

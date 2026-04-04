@@ -206,11 +206,13 @@ export default function Home() {
     router.push(`/search?itemId=${itemId}&q=${encodeURIComponent(query)}`);
   }
 
-  const activeItems = items.filter((i) => i.status !== 'purchased');
-  const purchasedItems = items.filter((i) => i.status === 'purchased');
+  const pinnedItems = items.filter((i) => i.persistent);
+  const regularActiveItems = items.filter((i) => !i.persistent && i.status !== 'purchased');
+  const todaysListItems = [...pinnedItems, ...regularActiveItems];
+  const purchasedItems = items.filter((i) => !i.persistent && i.status === 'purchased');
 
-  const selectableIds = activeItems
-    .filter((i) => i.status !== 'carted')
+  const selectableIds = todaysListItems
+    .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
     .map((i) => i.id);
 
   const allSelected =
@@ -234,15 +236,15 @@ export default function Home() {
   }
 
   function handleBatchSearch(stores: ('kroger' | 'amazon')[]) {
-    const selected = activeItems.filter((i) => selectedIds.has(i.id));
+    const selected = todaysListItems.filter((i) => selectedIds.has(i.id));
     if (selected.length === 0) return;
     const ids = selected.map((i) => i.id).join(',');
     const storeParam = stores.join(',');
     router.push(`/search?mode=batch&ids=${encodeURIComponent(ids)}&stores=${encodeURIComponent(storeParam)}`);
   }
 
-  const pendingCount = activeItems.filter((i) => i.status === 'pending' || i.status === 'matched').length;
-  const cartedCount = activeItems.filter((i) => i.status === 'carted').length;
+  const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'matched').length;
+  const cartedCount = items.filter((i) => i.status === 'carted').length;
 
   return (
     <div className="container" style={{ paddingBottom: '120px' }}>
@@ -261,7 +263,7 @@ export default function Home() {
         <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
           <SyncButton syncing={syncing} onSync={syncFromTodoist} />
           <button
-            className="btn btn-secondary"
+            className="btn btn-primary"
             onClick={restorePinned}
             disabled={restoringPinned}
             title="Move all pinned purchased items back to active list"
@@ -301,13 +303,14 @@ export default function Home() {
       <BatchActionBar
         selectedCount={selectedIds.size}
         onSearch={handleBatchSearch}
+        onClear={() => setSelectedIds(new Set())}
       />
 
       {/* Add Item Input */}
       <AddItemBar onAdd={addItems} bulkMode={bulkMode} setBulkMode={setBulkMode} />
 
       {/* Shopping List */}
-      {activeItems.length > 0 && (
+      {todaysListItems.length > 0 && (
         <div className="glass-card" style={{ marginTop: 'var(--space-lg)' }}>
           <div
             style={{
@@ -328,7 +331,7 @@ export default function Home() {
                 />
               TODAY&apos;S LIST
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                {activeItems.length} item{activeItems.length !== 1 ? 's' : ''}
+                {todaysListItems.length} item{todaysListItems.length !== 1 ? 's' : ''}
               </span>
             </h2>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -352,11 +355,34 @@ export default function Home() {
           </div>
 
           <div>
-            {activeItems.map((item, index) => (
+            {/* 📌 Pinned shelf — always at top, any status */}
+            {pinnedItems.map((item, index) => (
               <ListItem
                 key={item.id}
                 item={item}
                 index={index}
+                onRemove={removeItem}
+                selected={selectedIds.has(item.id)}
+                onToggle={toggleSelect}
+                onTogglePersistent={togglePersistent}
+              />
+            ))}
+
+            {/* Subtle divider between pinned shelf and today's items */}
+            {pinnedItems.length > 0 && regularActiveItems.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0 2px', margin: '4px 0 2px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                  Today
+                </span>
+              </div>
+            )}
+
+            {/* Regular (non-pinned) active items */}
+            {regularActiveItems.map((item, index) => (
+              <ListItem
+                key={item.id}
+                item={item}
+                index={pinnedItems.length + index}
                 onRemove={removeItem}
                 selected={selectedIds.has(item.id)}
                 onToggle={toggleSelect}
@@ -460,7 +486,7 @@ export default function Home() {
       )}
 
       {/* Empty state */}
-      {activeItems.length === 0 && purchasedItems.length === 0 && (
+      {todaysListItems.length === 0 && purchasedItems.length === 0 && (
         <div
           className="glass-card animate-fade-in"
           style={{
