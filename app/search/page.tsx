@@ -29,6 +29,7 @@ export default function SearchPage() {
   const { addItem } = useCart();
   const [itemRawText, setItemRawText] = useState('');
   const [itemPreference, setItemPreference] = useState<{ preferred_upc?: string | null; preferred_asin?: string | null; display_name?: string } | null>(null);
+  const [historicalAverages, setHistoricalAverages] = useState<Record<string, number>>({});
   // Selected product keys for cart (checkbox state)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // For single-item mode: which product key is radioed as the remembered preference
@@ -134,6 +135,17 @@ export default function SearchPage() {
       })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch historical averages whenever results change (powers Stock Up badge)
+  useEffect(() => {
+    const allProducts = [...krogerResults, ...amazonResults];
+    if (allProducts.length === 0) return;
+    const names = [...new Set(allProducts.map((p) => p.name))].join(',');
+    fetch(`/api/price-history/averages?names=${encodeURIComponent(names)}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.success && d.averages) setHistoricalAverages(d.averages); })
+      .catch(() => {});
+  }, [krogerResults, amazonResults]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function searchKroger(q: string, loc?: string) {
     const useLoc = loc ?? locationId;
@@ -553,6 +565,7 @@ export default function SearchPage() {
         loading={isLoading}
         rememberedKey={itemId ? rememberedKey : undefined}
         onSelectRemember={itemId ? (key) => setRememberedKey(key) : undefined}
+        historicalAverages={historicalAverages}
       />
 
       {/* Sticky Add to Cart bar */}

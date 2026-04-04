@@ -14,9 +14,10 @@ interface SearchResultsProps {
   loading?: boolean;
   rememberedKey?: string | null;
   onSelectRemember?: (key: string) => void;
+  historicalAverages?: Record<string, number>;
 }
 
-export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, loading, rememberedKey, onSelectRemember }: SearchResultsProps) {
+export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, loading, rememberedKey, onSelectRemember, historicalAverages }: SearchResultsProps) {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, 
               isRemembered={rememberedKey === key}
               onSelectRemember={onSelectRemember ? () => onSelectRemember(key) : undefined}
               radioGroupName="remember-single"
+              historicalAvg={historicalAverages?.[product.name] ?? null}
             />
           );
         })}

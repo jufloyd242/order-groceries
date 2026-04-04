@@ -16,6 +16,8 @@ interface ProductCardProps {
   onSelectRemember?: () => void;
   /** Radio group name — callers scope this per search context to enforce mutual exclusivity. */
   radioGroupName?: string;
+  /** Historical average price for this product. If current price is ≥15% below, show Stock Up badge. */
+  historicalAvg?: number | null;
 }
 
 export function ProductCard({
@@ -26,10 +28,16 @@ export function ProductCard({
   isRemembered,
   onSelectRemember,
   radioGroupName = 'remember',
+  historicalAvg,
 }: ProductCardProps) {
   const price = product.price ?? 0;
   const promoPrice = product.promo_price;
   const displayPrice = promoPrice && promoPrice > 0 ? promoPrice : price;
+  const isStockUpPrice =
+    historicalAvg != null &&
+    historicalAvg > 0 &&
+    displayPrice > 0 &&
+    displayPrice <= historicalAvg * 0.85;
 
   return (
     <div
@@ -90,37 +98,56 @@ export function ProductCard({
         </div>
       )}
 
-      {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc', lineHeight: 1.3 }}>
-          {product.name}
-        </div>
-        {product.brand && (
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            {product.brand}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc', lineHeight: 1.3 }}>
+            {product.name}
           </div>
-        )}
-        {product.size && (
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {product.size}
-          </div>
-        )}
-        <div
-          style={{
-            fontSize: '1rem',
-            fontWeight: 700,
-            color: displayPrice > 0 ? 'var(--accent-green)' : 'var(--text-muted)',
-            marginTop: '4px',
-          }}
-        >
-          {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
-          {promoPrice && promoPrice > 0 && price > promoPrice && (
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through', marginLeft: '6px' }}>
-              ${price.toFixed(2)}
-            </span>
+          {product.brand && (
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              {product.brand}
+            </div>
           )}
+          {product.size && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {product.size}
+            </div>
+          )}
+          <div
+            style={{
+              fontSize: '1rem',
+              fontWeight: 700,
+              color: displayPrice > 0 ? 'var(--accent-green)' : 'var(--text-muted)',
+              marginTop: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
+            {promoPrice && promoPrice > 0 && price > promoPrice && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+                ${price.toFixed(2)}
+              </span>
+            )}
+            {isStockUpPrice && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: '#052e16',
+                  background: '#4ade80',
+                  borderRadius: '4px',
+                  padding: '2px 6px',
+                  letterSpacing: '0.01em',
+                }}
+                title={`${Math.round((1 - displayPrice / historicalAvg!) * 100)}% below your avg of $${historicalAvg!.toFixed(2)}`}
+              >
+                🔥 Stock Up Price!
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
       {/* Remember radio (only shown when in a search context with an itemId/listItemId) */}
       {onSelectRemember && (

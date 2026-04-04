@@ -81,6 +81,29 @@ export async function POST(request: NextRequest) {
       .filter((r) => r.success)
       .flatMap((r) => items.filter((i) => i.store === r.store).map((i) => i.id));
 
+    // ── Record price history for successfully submitted items ─
+    const successfulItems = items.filter((i) =>
+      results.some((r) => r.success && r.store === i.store)
+    );
+    if (successfulItems.length > 0) {
+      const historyRows = successfulItems
+        .filter((i) => i.price > 0)
+        .map((i) => ({
+          product_name: i.name,
+          store: i.store,
+          price: i.price,
+          price_per_unit: null as number | null,
+          unit: i.size || null,
+          user_id: user.id,
+        }));
+      if (historyRows.length > 0) {
+        // Fire-and-forget — don't fail the cart submission if history insert fails
+        supabase.from('price_history').insert(historyRows).then(({ error }) => {
+          if (error) console.error('[price_history] Insert failed:', error.message);
+        });
+      }
+    }
+
     // If any store needs OAuth, surface it at the top level
     const needsAuth = results.find((r) => r.authUrl);
     if (needsAuth) {
