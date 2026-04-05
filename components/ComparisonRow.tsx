@@ -8,9 +8,11 @@ import { useState } from 'react';
 interface ComparisonRowProps {
   result: ComparisonResult;
   onPick: (itemId: string, store: 'kroger' | 'amazon') => void;
+  /** True when the compare API was called with ?amazon=true — distinguishes "Not Found" from "Not Searched" */
+  isAmazonSearched?: boolean;
 }
 
-export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
+export function ComparisonRow({ result, onPick, isAmazonSearched = false }: ComparisonRowProps) {
   const { item, selected_kroger, selected_amazon, winner, savings } = result;
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
@@ -109,8 +111,12 @@ export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
                 </a>
               )}
             </div>
+          ) : isAmazonSearched ? (
+            /* Amazon was searched but returned no match for this item */
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not found</div>
           ) : (
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not searched</div>
+            /* Amazon wasn't included in this comparison run */
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not searched</div>
           )}
           <button 
             onClick={() => onPick(item.id, 'amazon')}

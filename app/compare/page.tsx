@@ -5,30 +5,34 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
 
-const CACHE_KEY = 'sgo_comparison_cache';
+const CACHE_KEY_KS = 'sgo_cc_ks';
+const CACHE_KEY_AMAZON = 'sgo_cc_amazon';
 
 export default function ComparePage() {
   const [results, setResults] = useState<ComparisonResult[]>([]);
   const [summary, setSummary] = useState<ComparisonSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [includeAmazon, setIncludeAmazon] = useState(false);
+  const [includeAmazon, setIncludeAmazon] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // Items filter from home page selection (e.g. /compare?ids=1,2,3)
   const idsParam = searchParams.get('ids') || '';
   const filteredIds = idsParam ? new Set(idsParam.split(',').filter(Boolean)) : null;
-  // Amazon flag can be pre-set from the action bar
-  const amazonParam = searchParams.get('amazon') === 'true';
+  // Amazon flag: URL param overrides default (default is true)
+  const amazonParamRaw = searchParams.get('amazon');
+  const amazonParam = amazonParamRaw !== null ? amazonParamRaw === 'true' : true;
 
   useEffect(() => {
     const withAmazon = amazonParam;
     setIncludeAmazon(withAmazon);
     // Only restore cache when showing the full list (no id filter)
+    // Use the cache that matches the current Amazon state to avoid stale data.
     if (!filteredIds) {
       try {
-        const cached = sessionStorage.getItem(CACHE_KEY);
+        const cacheKey = withAmazon ? CACHE_KEY_AMAZON : CACHE_KEY_KS;
+        const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
           const { results: cachedResults, summary: cachedSummary } = JSON.parse(cached);
           setResults(cachedResults);
@@ -73,7 +77,8 @@ export default function ComparePage() {
         // Only cache when showing the full list (no id filter active)
         if (!filteredIds) {
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ results: filtered, summary }));
+            const cacheKey = withAmazon ? CACHE_KEY_AMAZON : CACHE_KEY_KS;
+            sessionStorage.setItem(cacheKey, JSON.stringify({ results: filtered, summary }));
           } catch (_) {}
         }
       } else {
@@ -87,8 +92,11 @@ export default function ComparePage() {
   }
 
   function handlePick(itemId: string, store: 'kroger' | 'amazon') {
-    // Clear cache so comparison re-fetches with updated preference
-    try { sessionStorage.removeItem(CACHE_KEY); } catch (_) {}
+    // Clear both caches so comparison re-fetches with updated preference
+    try {
+      sessionStorage.removeItem(CACHE_KEY_KS);
+      sessionStorage.removeItem(CACHE_KEY_AMAZON);
+    } catch (_) {}
     router.push(`/pick/${itemId}?store=${store}`);
   }
 
@@ -135,8 +143,11 @@ export default function ComparePage() {
                 type="checkbox"
                 checked={includeAmazon}
                 onChange={(e) => {
-                  setIncludeAmazon(e.target.checked);
-                  fetchComparison(e.target.checked);
+                  const newValue = e.target.checked;
+                  // Evict cache for the target state so we always fetch fresh data after toggle
+                  try { sessionStorage.removeItem(newValue ? CACHE_KEY_AMAZON : CACHE_KEY_KS); } catch (_) {}
+                  setIncludeAmazon(newValue);
+                  fetchComparison(newValue);
                 }}
                 style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
               />
@@ -163,6 +174,7 @@ export default function ComparePage() {
             key={result.item.id} 
             result={result} 
             onPick={handlePick}
+            isAmazonSearched={includeAmazon}
           />
         ))}
       </div>
