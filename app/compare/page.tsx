@@ -101,20 +101,7 @@ export default function ComparePage() {
   }
 
   if (loading) {
-    return (
-      <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-2xl)' }}>
-        <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)', animation: 'spin 2s linear infinite' }}>🛒</div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{includeAmazon ? 'Comparing Prices...' : 'Fetching King Soopers Prices...'}</h1>
-        <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)' }}>
-          {includeAmazon ? 'Comparing King Soopers & Amazon prices for your items.' : 'Fetching King Soopers prices for your items.'}
-        </p>
-        {includeAmazon && (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 'var(--space-xs)' }}>
-            Amazon lookups take 10–20 seconds.
-          </p>
-        )}
-      </div>
-    );
+    return <CompareLoadingScreen includeAmazon={includeAmazon} />;
   }
 
   if (error) {
@@ -185,6 +172,138 @@ export default function ComparePage() {
           ← Back to Inbox
         </button>
       </footer>
+    </div>
+  );
+}
+
+// ─── Loading screen ───────────────────────────────────────────────────────────
+
+const KS_MESSAGES = [
+  'Checking the back of the shelf for the good milk…',
+  'Negotiating bulk discounts with the produce section…',
+  'Bribing the deli counter for priority pricing…',
+  'Reorganizing the cereal aisle by vibes…',
+  'Taste-testing every sample to ensure accuracy…',
+];
+
+const AMAZON_MESSAGES = [
+  'Galloping through the aisles to beat the Amazon delivery driver…',
+  'Arguing with the self-checkout about an unexpected item in the bagging area…',
+  'Scanning every barcode in existence. Please hold…',
+  'Dispatching a drone to check Amazon\'s warehouse inventory…',
+  'Consulting three different price-comparison spreadsheets simultaneously…',
+];
+
+function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean }) {
+  const messages = includeAmazon ? AMAZON_MESSAGES : KS_MESSAGES;
+  const [msgIndex, setMsgIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setMsgIndex((i) => (i + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [messages.length]);
+
+  return (
+    <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
+      <div
+        className="glass-card"
+        style={{
+          padding: '2.5rem 2rem',
+          maxWidth: '420px',
+          width: '100%',
+          textAlign: 'center',
+          animation: 'pulseGreen 3s ease-in-out infinite',
+        }}
+      >
+        {/* Cart bounce animation */}
+        <div style={{ position: 'relative', height: '90px', marginBottom: '1.5rem', overflow: 'hidden' }}>
+          {/* Aisle floor line */}
+          <div style={{
+            position: 'absolute',
+            bottom: '14px',
+            left: '10%',
+            right: '10%',
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent, rgba(132,204,22,0.4), transparent)',
+            borderRadius: '1px',
+          }} />
+
+          {/* Bouncing cart */}
+          <div style={{
+            position: 'absolute',
+            bottom: '16px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: '3rem',
+            lineHeight: 1,
+            animation: 'cartBounce 1.6s ease-in-out infinite',
+            userSelect: 'none',
+          }}>
+            🛒
+          </div>
+
+          {/* Speed lines */}
+          {[20, 35, 50, 65, 80].map((left, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                bottom: `${28 + (i % 3) * 8}px`,
+                left: `${left}%`,
+                width: `${10 + (i % 3) * 6}px`,
+                height: '2px',
+                background: 'rgba(132,204,22,0.25)',
+                borderRadius: '1px',
+                animation: `cartBounce ${1.6 + i * 0.1}s ease-in-out infinite`,
+                animationDelay: `${i * 0.08}s`,
+              }}
+            />
+          ))}
+
+          {/* Scanner beam (only when Amazon) */}
+          {includeAmazon && (
+            <div style={{
+              position: 'absolute',
+              left: '15%',
+              right: '15%',
+              height: '2px',
+              background: 'linear-gradient(90deg, transparent, #84cc16, #ff9900, #84cc16, transparent)',
+              borderRadius: '2px',
+              animation: 'scanLine 1.8s ease-in-out infinite',
+              boxShadow: '0 0 8px rgba(132,204,22,0.6)',
+            }} />
+          )}
+        </div>
+
+        {/* Title */}
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+          {includeAmazon ? '🔍 Comparing Prices…' : '🟢 Fetching King Soopers Prices…'}
+        </h2>
+
+        {/* Rotating message */}
+        <p
+          key={msgIndex}
+          style={{
+            fontSize: '0.9rem',
+            color: 'var(--text-secondary)',
+            minHeight: '2.6em',
+            margin: '0.75rem 0',
+            animation: 'fadeMsg 3s ease-in-out forwards',
+            fontStyle: 'italic',
+          }}
+        >
+          {messages[msgIndex]}
+        </p>
+
+        {/* Time warning */}
+        {includeAmazon && (
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
+            Amazon lookups take 10–20 seconds.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

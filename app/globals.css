@@ -483,3 +483,30 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ─── CompareLoadingScreen animations ──────────────────────────── */
+
+@keyframes cartBounce {
+  0%, 100% { transform: translateY(0); }
+  20%       { transform: translateY(-14px) rotate(-4deg); }
+  40%       { transform: translateY(0)     rotate(0deg); }
+  60%       { transform: translateY(-8px)  rotate(3deg); }
+  80%       { transform: translateY(0)     rotate(0deg); }
+}
+
+@keyframes scanLine {
+  0%, 100% { top: 18%; opacity: 0.9; }
+  50%       { top: 72%; opacity: 1;   }
+}
+
+@keyframes fadeMsg {
+  0%   { opacity: 0; transform: translateY(6px);  }
+  15%  { opacity: 1; transform: translateY(0);    }
+  85%  { opacity: 1; transform: translateY(0);    }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
+@keyframes pulseGreen {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(132,204,22,0.0); }
+  50%       { box-shadow: 0 0 18px 4px rgba(132,204,22,0.25); }
+}
