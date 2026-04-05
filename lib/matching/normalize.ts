@@ -178,6 +178,29 @@ const UNIT_ALT =
   'oz|lbs?|pounds?|fl\\.?\\s*oz|fluid\\s*oz|gal(?:lons?)?|qt|quarts?|pt|pints?|L|liters?|litres?|mL|milliliters?|g|kg|kilograms?|grams?';
 const COUNT_ALT = 'ct|count|packs?|pk|rolls?|sheets?|pieces?|doz(?:en)?';
 
+// Roll-size multipliers: how many "standard rolls" worth of paper each roll type contains.
+// Used to estimate total sheets for unit-price comparison (price per 100 sheets).
+const ROLL_MULTIPLIERS: Record<string, number> = {
+  mega: 2,
+  double: 2,
+  large: 1.5,
+  family: 3,
+  jumbo: 2.5,
+  super: 2,
+  ultra: 2,
+  triple: 3,
+};
+// Estimated sheets per regular/standard roll (Charmin Regular baseline)
+const SHEETS_PER_STANDARD_ROLL = 264;
+
+/** Returns estimated total sheet count if the size string describes paper product rolls, else null. */
+function estimateSheetCount(sizeStr: string, rollCount: number): number | null {
+  const m = sizeStr.match(/\b(mega|double|large|family|jumbo|super|ultra|triple)\b/i);
+  if (!m) return null;
+  const multiplier = ROLL_MULTIPLIERS[m[1].toLowerCase()] ?? 1;
+  return Math.round(rollCount * multiplier * SHEETS_PER_STANDARD_ROLL);
+}
+
 /**
  * Parse a product size string into a normalized ParsedSize.
  *
@@ -256,8 +279,21 @@ export function parseProductSize(sizeStr: string): ParsedSize | null {
   const countMatch = s.match(countRe);
   if (countMatch) {
     const qty = parseFloat(countMatch[1]);
+    const rawUnit = countMatch[2].toLowerCase();
+    const isRoll = /roll/.test(rawUnit);
     const r = resolveToBaseUnit(qty, countMatch[2]);
     if (r) {
+      if (isRoll) {
+        const totalSheets = estimateSheetCount(s, qty);
+        if (totalSheets !== null) {
+          return {
+            totalQty: totalSheets,
+            baseUnit: 'ct',
+            displayStr: `${qty} rolls ≈ ${totalSheets.toLocaleString()} sheets`,
+            packCount: qty,
+          };
+        }
+      }
       return { totalQty: r.totalQty, baseUnit: r.baseUnit, displayStr: `${qty} ct` };
     }
   }

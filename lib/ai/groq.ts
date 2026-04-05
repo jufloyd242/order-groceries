@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
 import { ProductMatch } from '@/types';
+import { createClient } from '@/lib/supabase/server';
 
 // ---------------------------------------------------------------------------
 // Groq AI Semantic Match Evaluator
@@ -153,6 +154,40 @@ export async function applySemanticMatching(
   const topScore = products[0]?.match_score ?? 0;
   if (topScore >= CONFIDENCE_THRESHOLD) return products;
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const store = products[0]?.store ?? 'unknown';
+
+  // ── Cache read ────────────────────────────────────────────────────────────
+  try {
+    const supabase = await createClient();
+    const { data: cached } = await supabase
+      .from('semantic_cache')
+      .select('best_match_id, confidence, reasoning, total_qty, total_qty_unit')
+      .eq('query', normalizedQuery)
+      .eq('store', store)
+      .maybeSingle();
+
+    if (cached) {
+      const cachedIdx = products.findIndex((p) => p.id === cached.best_match_id);
+      if (cachedIdx !== -1) {
+        console.log(`[groq] Cache HIT for "${query}" (${store}) → "${cached.best_match_id}" confidence ${cached.confidence}`);
+        const updated = [...products];
+        const chosen = {
+          ...updated[cachedIdx],
+          match_score: cached.confidence,
+          ai_reasoning: cached.reasoning ?? undefined,
+          ...(cached.total_qty != null ? { normalized_total_qty: Number(cached.total_qty) } : {}),
+          ...(cached.total_qty_unit ? { normalized_qty_unit: cached.total_qty_unit } : {}),
+        };
+        updated.splice(cachedIdx, 1);
+        updated.unshift(chosen);
+        return updated;
+      }
+    }
+  } catch (err) {
+    console.warn('[groq] Cache read failed (non-fatal):', err instanceof Error ? err.message : err);
+  }
+
   console.log(
     `[groq] Top fuzzy score for "${query}" is ${topScore} — invoking semantic matching on ${products.length} candidate(s)`,
   );
@@ -179,6 +214,24 @@ export async function applySemanticMatching(
   // Remove from original position and insert at front
   updated.splice(aiIdx, 1);
   updated.unshift(chosen);
+
+  // ── Cache write (fire-and-forget) ─────────────────────────────────────────
+  createClient().then((supabase) =>
+    supabase.from('semantic_cache').upsert(
+      {
+        query: normalizedQuery,
+        store,
+        best_match_id: result.bestMatchId,
+        confidence: result.confidenceScore,
+        reasoning: result.reasoning,
+        total_qty: result.totalQty ?? null,
+        total_qty_unit: result.totalQtyUnit ?? null,
+      },
+      { onConflict: 'query,store' },
+    )
+  ).catch((err) =>
+    console.warn('[groq] Cache write failed (non-fatal):', err instanceof Error ? err.message : err)
+  );
 
   return updated;
 }

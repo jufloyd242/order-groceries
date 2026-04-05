@@ -154,8 +154,10 @@ export interface NewProductPreference {
 export interface ResolvedItem {
   listItem: ListItem;
   preference: ProductPreference | null;
-  searchQuery: string;      // What to search for in store APIs
-  isNew: boolean;           // True = needs user to pick a product
+  searchQuery: string;       // Base search query (used for AI matching)
+  krogerQuery?: string;      // Store-specific override for Kroger searches
+  amazonQuery?: string;      // Store-specific override for Amazon searches
+  isNew: boolean;            // True = needs user to pick a product
 }
 
 // ─── App Settings ─────────────────────────────────────────────

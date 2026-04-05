@@ -2,6 +2,16 @@ import { createClient } from '@/lib/supabase/server';
 import { ListItem, ProductPreference, ResolvedItem, Abbreviation } from '@/types';
 import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from './normalize';
 
+// Staple grocery items that benefit from store-brand query injection.
+// When one of these is searched without a saved preference/override, we prepend
+// the store's generic brand ("Simple Truth" for Kroger, "365" for Amazon) so
+// the search results skew toward cheaper generic products.
+const STAPLE_KEYWORDS = [
+  'milk', 'eggs', 'egg', 'bread', 'butter', 'cheese', 'pasta', 'rice',
+  'flour', 'sugar', 'oil', 'yogurt', 'cream', 'oats', 'cereal', 'beans',
+  'salt', 'pepper',
+];
+
 /**
  * Resolves a ListItem to a ProductPreference and search query by querying Supabase.
  */
@@ -42,11 +52,18 @@ export async function resolveItem(listItem: ListItem): Promise<ResolvedItem> {
     .maybeSingle();
 
   if (prefError || !preference) {
-    // No mapping found
+    // No mapping found — check if this is a staple so we inject store-brand queries
+    const isStaple = STAPLE_KEYWORDS.some((k) => normalized.normalized_name.includes(k))
+      || listItem.raw_text.toLowerCase().includes('generic');
+
     return {
       listItem: updatedListItem,
       preference: null,
       searchQuery: normalized.normalized_name,
+      ...(isStaple ? {
+        krogerQuery: `Simple Truth ${normalized.normalized_name}`,
+        amazonQuery: `365 ${normalized.normalized_name}`,
+      } : {}),
       isNew: true,
     };
   }
@@ -58,6 +75,12 @@ export async function resolveItem(listItem: ListItem): Promise<ResolvedItem> {
     ? typedPreference.search_override 
     : typedPreference.display_name;
 
+  // Staple check: only inject store-brand queries when there's no explicit search_override
+  const isStaple = !typedPreference.search_override && (
+    STAPLE_KEYWORDS.some((k) => normalized.normalized_name.includes(k))
+    || listItem.raw_text.toLowerCase().includes('generic')
+  );
+
   return {
     listItem: {
       ...updatedListItem,
@@ -66,6 +89,10 @@ export async function resolveItem(listItem: ListItem): Promise<ResolvedItem> {
     },
     preference: typedPreference,
     searchQuery: searchQuery,
+    ...(isStaple ? {
+      krogerQuery: `Simple Truth ${searchQuery}`,
+      amazonQuery: `365 ${searchQuery}`,
+    } : {}),
     isNew: false,
   };
 }

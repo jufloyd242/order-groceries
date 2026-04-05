@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
+import { useCart } from '@/lib/cart/CartContext';
 
 const CACHE_KEY_KS = 'sgo_cc_ks';
 const CACHE_KEY_AMAZON = 'sgo_cc_amazon';
@@ -14,8 +15,10 @@ export default function ComparePageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeAmazon, setIncludeAmazon] = useState(true);
+  const [optimized, setOptimized] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { addItem } = useCart();
 
   // Items filter from home page selection (e.g. /compare?ids=1,2,3)
   const idsParam = searchParams.get('ids') || '';
@@ -111,6 +114,20 @@ export default function ComparePageInner() {
     router.push(`/pick/${itemId}?${returnParams}`);
   }
 
+  function optimizeCart() {
+    const winners = results.filter(
+      (r) => r.winner !== 'tie' && (r.selected_kroger !== null || r.selected_amazon !== null)
+    );
+    winners.forEach((r) => {
+      if (r.winner === 'kroger' && r.selected_kroger) {
+        addItem(r.selected_kroger, r.item.quantity ?? 1, r.item.id);
+      } else if (r.winner === 'amazon' && r.selected_amazon) {
+        addItem(r.selected_amazon, r.item.quantity ?? 1, r.item.id);
+      }
+    });
+    setOptimized(true);
+  }
+
   if (loading) {
     return <CompareLoadingScreen includeAmazon={includeAmazon} />;
   }
@@ -176,6 +193,61 @@ export default function ComparePageInner() {
           />
         ))}
       </div>
+
+      {/* Optimize My Cart — floating button above the cart FAB */}
+      {(() => {
+        const clearWinners = results.filter(
+          (r) => r.winner !== 'tie' && (r.selected_kroger !== null || r.selected_amazon !== null)
+        );
+        if (clearWinners.length < 2) return null;
+        return (
+          <button
+            onClick={optimizeCart}
+            style={{
+              position: 'fixed',
+              bottom: '96px',
+              right: '16px',
+              zIndex: 800,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.6rem 1rem',
+              borderRadius: '2rem',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              color: '#0f172a',
+              backgroundColor: optimized ? '#4ade80' : '#84cc16',
+              boxShadow: '0 4px 16px rgba(132,204,22,0.45)',
+              transition: 'background-color 0.2s, transform 0.15s, box-shadow 0.15s',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(132,204,22,0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 4px 16px rgba(132,204,22,0.45)';
+            }}
+            aria-label={`Optimize My Cart — add ${clearWinners.length} best-price items`}
+          >
+            {optimized ? '✅' : '⚡'}
+            {optimized ? 'Cart Optimized!' : `Optimize My Cart`}
+            {!optimized && (
+              <span style={{
+                backgroundColor: 'rgba(0,0,0,0.15)',
+                borderRadius: '1rem',
+                padding: '0.1rem 0.45rem',
+                fontSize: '0.75rem',
+              }}>
+                {clearWinners.length}
+              </span>
+            )}
+          </button>
+        );
+      })()}
 
       {/* Dashboard Footer / Home link */}
       <footer style={{ marginTop: 'var(--space-2xl)', textAlign: 'center' }}>
