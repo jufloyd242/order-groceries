@@ -119,6 +119,152 @@ export function normalizeItem(
   };
 }
 
+// ─── Product Size Parser ───────────────────────────────────────
+
+/**
+ * Parsed size information for a grocery product.
+ * totalQty is expressed in the base unit (oz for weight, fl oz for volume, ct for count).
+ */
+export interface ParsedSize {
+  totalQty: number;     // Total quantity in base unit
+  baseUnit: string;     // 'oz', 'fl oz', or 'ct'
+  displayStr: string;   // Human-readable, e.g. "6 × 12 oz"
+  packCount?: number;   // Number of items in a multi-pack
+}
+
+// Conversion factors to base units
+const WEIGHT_UNIT_TO_OZ: Record<string, number> = {
+  oz: 1, lb: 16, lbs: 16, g: 0.03527396, kg: 35.27396,
+};
+const VOLUME_UNIT_TO_FLOZ: Record<string, number> = {
+  'fl oz': 1, gal: 128, qt: 32, pt: 16, l: 33.814, ml: 0.033814,
+};
+
+function canonicalUnit(raw: string): string {
+  const u = raw.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (u === 'lbs' || u === 'pound' || u === 'pounds') return 'lb';
+  if (u === 'ounce' || u === 'ounces') return 'oz';
+  if (u === 'fl oz' || u === 'fluid oz' || u === 'fluid ounce' || u === 'fluid ounces') return 'fl oz';
+  if (u === 'gallon' || u === 'gallons') return 'gal';
+  if (u === 'quart' || u === 'quarts') return 'qt';
+  if (u === 'pint' || u === 'pints') return 'pt';
+  if (u === 'liter' || u === 'liters' || u === 'litre' || u === 'litres') return 'l';
+  if (u === 'milliliter' || u === 'milliliters' || u === 'millilitre') return 'ml';
+  if (u === 'gram' || u === 'grams') return 'g';
+  if (u === 'kilogram' || u === 'kilograms') return 'kg';
+  if (u === 'count' || u === 'pk' || u === 'pack' || u === 'packs') return 'ct';
+  if (u === 'roll' || u === 'rolls') return 'ct';
+  if (u === 'sheet' || u === 'sheets') return 'ct';
+  if (u === 'piece' || u === 'pieces') return 'ct';
+  if (u === 'dozen' || u === 'doz') return 'dozen';
+  return u;
+}
+
+function resolveToBaseUnit(qty: number, unit: string): { totalQty: number; baseUnit: string } | null {
+  const u = canonicalUnit(unit);
+  if (u in WEIGHT_UNIT_TO_OZ) {
+    return { totalQty: Math.round(qty * WEIGHT_UNIT_TO_OZ[u] * 10000) / 10000, baseUnit: 'oz' };
+  }
+  if (u in VOLUME_UNIT_TO_FLOZ) {
+    return { totalQty: Math.round(qty * VOLUME_UNIT_TO_FLOZ[u] * 10000) / 10000, baseUnit: 'fl oz' };
+  }
+  if (u === 'dozen') return { totalQty: qty * 12, baseUnit: 'ct' };
+  if (u === 'ct' || u === 'each') return { totalQty: qty, baseUnit: 'ct' };
+  return null;
+}
+
+// Shared unit group for regex alternation
+const UNIT_ALT =
+  'oz|lbs?|pounds?|fl\\.?\\s*oz|fluid\\s*oz|gal(?:lons?)?|qt|quarts?|pt|pints?|L|liters?|litres?|mL|milliliters?|g|kg|kilograms?|grams?';
+const COUNT_ALT = 'ct|count|packs?|pk|rolls?|sheets?|pieces?|doz(?:en)?';
+
+/**
+ * Parse a product size string into a normalized ParsedSize.
+ *
+ * Handles:
+ * - Simple: "12 oz", "1.5 lb"
+ * - Multi-pack multiplier: "6 x 16.9 fl oz", "4×32 oz"
+ * - Pack-of: "Pack of 6, 12 oz", "6 pack 12 oz each"
+ * - Descriptive count: "12 mega rolls", "24 ct"
+ *
+ * Returns null if the size string can't be reliably parsed.
+ */
+export function parseProductSize(sizeStr: string): ParsedSize | null {
+  if (!sizeStr || !sizeStr.trim()) return null;
+  const s = sizeStr.trim();
+
+  // Pattern 1: Multiplier — "N x M unit" / "N × M unit" / "N*M unit"
+  const mulRe = new RegExp(
+    `^(\\d+\\.?\\d*)\\s*[x×*]\\s*(\\d+\\.?\\d*)\\s*(${UNIT_ALT})\\b`,
+    'i',
+  );
+  const mulMatch = s.match(mulRe);
+  if (mulMatch) {
+    const packCount = parseFloat(mulMatch[1]);
+    const singleQty = parseFloat(mulMatch[2]);
+    const r = resolveToBaseUnit(singleQty, mulMatch[3]);
+    if (r) {
+      return {
+        totalQty: Math.round(packCount * r.totalQty * 1000) / 1000,
+        baseUnit: r.baseUnit,
+        displayStr: `${packCount} × ${singleQty} ${canonicalUnit(mulMatch[3])}`,
+        packCount,
+      };
+    }
+  }
+
+  // Pattern 2: "Pack of N, M unit" or "N pack M unit" or "N ct M unit each"
+  const packOfRe = new RegExp(
+    `(?:pack\\s+of\\s+(\\d+)[,\\s]+|(\\d+)\\s+(?:pack|ct|count)[,\\s]+)(\\d+\\.?\\d*)\\s*(${UNIT_ALT})\\b`,
+    'i',
+  );
+  const packOfMatch = s.match(packOfRe);
+  if (packOfMatch) {
+    const packCount = parseFloat(packOfMatch[1] ?? packOfMatch[2]);
+    const singleQty = parseFloat(packOfMatch[3]);
+    const r = resolveToBaseUnit(singleQty, packOfMatch[4]);
+    if (r && packCount > 0) {
+      return {
+        totalQty: Math.round(packCount * r.totalQty * 1000) / 1000,
+        baseUnit: r.baseUnit,
+        displayStr: `${packCount} × ${singleQty} ${canonicalUnit(packOfMatch[4])}`,
+        packCount,
+      };
+    }
+  }
+
+  // Pattern 3: Simple weight/volume — "12 oz", "1.5 lb", "2 gal"
+  const simpleRe = new RegExp(`^(\\d+\\.?\\d*)\\s*(${UNIT_ALT})\\b`, 'i');
+  const simpleMatch = s.match(simpleRe);
+  if (simpleMatch) {
+    const qty = parseFloat(simpleMatch[1]);
+    const r = resolveToBaseUnit(qty, simpleMatch[2]);
+    if (r) {
+      return {
+        totalQty: r.totalQty,
+        baseUnit: r.baseUnit,
+        displayStr: `${qty} ${canonicalUnit(simpleMatch[2])}`,
+      };
+    }
+  }
+
+  // Pattern 4: Count — "12 mega rolls", "24 ct", "6 packs"
+  const countRe = new RegExp(
+    `^(\\d+)\\s*(?:mega|double|triple|super|ultra)?\\s*(${COUNT_ALT})\\b`,
+    'i',
+  );
+  const countMatch = s.match(countRe);
+  if (countMatch) {
+    const qty = parseFloat(countMatch[1]);
+    const r = resolveToBaseUnit(qty, countMatch[2]);
+    if (r) {
+      return { totalQty: r.totalQty, baseUnit: r.baseUnit, displayStr: `${qty} ct` };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Build an abbreviation lookup map from an array of Abbreviation objects.
  */

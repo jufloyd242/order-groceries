@@ -108,9 +108,15 @@ export function ProductCard({
             </div>
           )}
           {product.size && (
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+            <span style={{
+              display: 'inline-block', marginTop: '3px',
+              fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em',
+              color: '#94a3b8', background: 'rgba(148,163,184,0.12)',
+              border: '1px solid rgba(148,163,184,0.22)', borderRadius: '4px',
+              padding: '1px 6px', textTransform: 'uppercase',
+            }}>
               {product.size}
-            </div>
+            </span>
           )}
           <div
             style={{
@@ -147,6 +153,11 @@ export function ProductCard({
               </span>
             )}
           </div>
+          {displayPrice > 0 && product.price_per_unit > 0 && product.unit && (
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>
+              ${product.price_per_unit.toFixed(2)}&nbsp;/&nbsp;{product.unit}
+            </div>
+          )}
         </div>
 
       {/* Remember radio (only shown when in a search context with an itemId/listItemId) */}

@@ -5,6 +5,7 @@ import {
   SerpApiAmazonResult,
   SerpApiProductPageSchema,
 } from './schemas';
+import { readCache, writeCache } from './cache';
 
 const SERPAPI_BASE = 'https://serpapi.com/search.json';
 
@@ -22,59 +23,65 @@ export async function searchAmazonProducts(
 ): Promise<ProductMatch[]> {
   const apiKey = process.env.SERPAPI_API_KEY;
   if (!apiKey) {
-    throw new Error('SERPAPI_API_KEY is not set. Add it to your .env.local file.');
+    console.warn('[Amazon] SERPAPI_API_KEY not set — skipping Amazon search');
+    return [];
   }
 
+  // Note: SerpApi Amazon organic results do NOT include prices.
+  // Prices are fetched separately via getAmazonProductByAsin for the winning product.
+  // This call exists purely for discovery: names, ASINs, thumbnails, ratings.
   const params = new URLSearchParams({
     engine: 'amazon',
-    type: 'search',
     amazon_domain: 'amazon.com',
     k: query,
     api_key: apiKey,
     zip_code: zipCode,
   });
 
-  const res = await fetch(`${SERPAPI_BASE}?${params}`, {
-    next: { revalidate: 0 },
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`SerpApi request failed: ${res.status} ${body}`);
+  let raw: unknown;
+  try {
+    const res = await fetch(`${SERPAPI_BASE}?${params}`, {
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) {
+      console.warn(`[Amazon] SerpApi HTTP ${res.status} for "${query}"`);
+      return [];
+    }
+    raw = await res.json();
+  } catch (err) {
+    console.warn('[Amazon] Network error for', query, err instanceof Error ? err.message : err);
+    return [];
   }
 
-  const raw = await res.json();
-
-  // Log raw response so we can diagnose missing/zero prices during development
-  console.log(`[Amazon] Raw SerpApi response for "${query}" (${(raw.organic_results ?? []).length} organic results):`,
-    JSON.stringify((raw.organic_results ?? []).slice(0, 3).map((r: Record<string, unknown>) => ({
-      title: r.title,
-      asin: r.asin,
-      price: r.price,
-    })), null, 2)
-  );
-
   const parsed = SerpApiResponseSchema.safeParse(raw);
-
   if (!parsed.success) {
-    throw new Error(`SerpApi response parse failed: ${parsed.error.message}`);
+    console.warn(`[Amazon] Response schema parse failed for "${query}":`, parsed.error.message);
+    return [];
   }
 
   if (parsed.data.error) {
-    throw new Error(`SerpApi error: ${parsed.data.error}`);
+    console.warn(`[Amazon] SerpApi API error for "${query}":`, parsed.data.error);
+    return [];
   }
 
   const results = parsed.data.organic_results ?? [];
+  console.log(`[Amazon] "${query}" → ${results.length} candidates from SerpApi`);
 
-  return results
-    .slice(0, limit)
-    .map((unknown) => {
-      const result = SerpApiAmazonResultSchema.safeParse(unknown);
-      return result.success ? mapAmazonProduct(result.data) : null;
-    })
-    // Only drop items that failed schema parsing — price=0 is kept so the
-    // UI can show "Check Amazon for Price" rather than hiding the product.
-    .filter((p): p is ProductMatch => p !== null);
+  const seen = new Set<string>();
+  const products: ProductMatch[] = [];
+
+  for (const unknown of results) {
+    if (products.length >= limit) break;
+    const result = SerpApiAmazonResultSchema.safeParse(unknown);
+    if (!result.success) continue;
+    const asin = result.data.asin;
+    if (!asin) continue;             // skip results with no ASIN
+    if (seen.has(asin)) continue;    // skip duplicates
+    seen.add(asin);
+    products.push(mapAmazonProduct(result.data));
+  }
+
+  return products;
 }
 
 /**
@@ -91,8 +98,13 @@ export async function getAmazonProductByAsin(
 ): Promise<ProductMatch | null> {
   const apiKey = process.env.SERPAPI_API_KEY;
   if (!apiKey) {
-    throw new Error('SERPAPI_API_KEY is not set. Add it to your .env.local file.');
+    console.warn('[Amazon] SERPAPI_API_KEY not set — skipping ASIN lookup');
+    return null;
   }
+
+  // Cache check — avoid burning SerpApi calls for repeat lookups
+  const cached = await readCache(asin, zipCode);
+  if (cached) return cached;
 
   const params = new URLSearchParams({
     engine: 'amazon_product',
@@ -143,7 +155,7 @@ export async function getAmazonProductByAsin(
 
   console.log(`[Amazon] ASIN "${asin}" resolved: "${p.title}" $${price || 'N/A'}`);
 
-  return {
+  const product: ProductMatch = {
     id: asin,
     name: p.title ?? asin,
     brand: p.brand ?? extractBrand(p.title ?? ''),
@@ -159,6 +171,11 @@ export async function getAmazonProductByAsin(
     link: productUrl,
     match_score: 100, // Exact ASIN match — always top score
   };
+
+  // Fire-and-forget: write to cache in background (don't block the response)
+  writeCache(product, zipCode).catch(() => {});
+
+  return product;
 }
 
 /**

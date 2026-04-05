@@ -116,11 +116,51 @@ export function compareItem(
     ? (bestAmazon.promo_price ?? bestAmazon.price) || null
     : null;
 
+  // Price-per-unit values from the adapters (set during product parsing)
+  const krogerPPU =
+    bestKroger && bestKroger.price_per_unit > 0 ? bestKroger.price_per_unit : null;
+  const amazonPPU =
+    bestAmazon && bestAmazon.price_per_unit > 0 ? bestAmazon.price_per_unit : null;
+
+  const comparisonUnit = bestKroger?.unit || bestAmazon?.unit || 'each';
+
+  // Use PPU when both stores have it AND use the same unit — gives a fair comparison
+  // across different package sizes (e.g., 12oz vs 24oz).
+  const unitsMatch =
+    !!bestKroger?.unit && !!bestAmazon?.unit &&
+    bestKroger.unit.toLowerCase() === bestAmazon.unit.toLowerCase();
+  const canComparePPU = krogerPPU !== null && amazonPPU !== null &&
+    krogerPrice !== null && amazonPrice !== null && unitsMatch;
+
   // Determine winner
   let winner: 'kroger' | 'amazon' | 'tie' = 'tie';
   let savings = 0;
+  let ppu_winner: 'kroger' | 'amazon' | 'tie' | undefined;
+  let savings_note: string | undefined;
 
-  if (krogerPrice !== null && amazonPrice !== null) {
+  if (canComparePPU) {
+    const unit = comparisonUnit;
+    // Equalized savings = per-unit difference × reference quantity (size of the losing product)
+    if (krogerPPU! < amazonPPU!) {
+      winner = 'kroger';
+      ppu_winner = 'kroger';
+      const diff = amazonPPU! - krogerPPU!;
+      const refQty = Math.round(amazonPrice! / amazonPPU!);  // approx qty units in Amazon product
+      savings = Math.round(diff * refQty * 100) / 100;
+      savings_note = `KS $${krogerPPU!.toFixed(2)}/${unit} · AMZ $${amazonPPU!.toFixed(2)}/${unit}`;
+    } else if (amazonPPU! < krogerPPU!) {
+      winner = 'amazon';
+      ppu_winner = 'amazon';
+      const diff = krogerPPU! - amazonPPU!;
+      const refQty = Math.round(krogerPrice! / krogerPPU!);  // approx qty units in Kroger product
+      savings = Math.round(diff * refQty * 100) / 100;
+      savings_note = `AMZ $${amazonPPU!.toFixed(2)}/${unit} · KS $${krogerPPU!.toFixed(2)}/${unit}`;
+    } else {
+      ppu_winner = 'tie';
+      savings_note = `Equal: $${krogerPPU!.toFixed(2)}/${unit}`;
+    }
+  } else if (krogerPrice !== null && amazonPrice !== null) {
+    // Fallback: raw sticker price comparison
     if (krogerPrice < amazonPrice) {
       winner = 'kroger';
       savings = Math.round((amazonPrice - krogerPrice) * 100) / 100;
@@ -134,19 +174,6 @@ export function compareItem(
     winner = 'amazon';
   }
 
-  // Calculate price per unit for fair comparison
-  const krogerPPU =
-    bestKroger && bestKroger.price_per_unit > 0
-      ? bestKroger.price_per_unit
-      : null;
-  const amazonPPU =
-    bestAmazon && bestAmazon.price_per_unit > 0
-      ? bestAmazon.price_per_unit
-      : null;
-
-  const comparisonUnit =
-    bestKroger?.unit || bestAmazon?.unit || 'each';
-
   return {
     item,
     kroger: krogerMatches,
@@ -155,6 +182,8 @@ export function compareItem(
     selected_amazon: bestAmazon,
     winner,
     savings,
+    ppu_winner,
+    savings_note,
     price_per_unit: {
       kroger: krogerPPU,
       amazon: amazonPPU,

@@ -4,7 +4,7 @@ import { resolveItem } from '@/lib/matching/preferences';
 import { searchProducts as searchKroger, getProductByUpc } from '@/lib/kroger/products';
 import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
-import { reScoreAmbiguousMatches } from '@/lib/ai/groq';
+import { applySemanticMatching } from '@/lib/ai/groq';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
 import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
 
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
           const [krogerResult, amazonResult] = await Promise.all([
             hasExactKroger
               ? getProductByUpc(pref!.preferred_upc!, locationId).catch(() => null)
-              : searchKroger(query, locationId, 5, pref?.preferred_brand ?? undefined).catch((err) => {
+              : searchKroger(query, locationId, 15, pref?.preferred_brand ?? undefined).catch((err) => {
                   console.error(`Kroger search failed for "${query}" at location "${locationId}":`, err);
                   return [] as import('@/types').ProductMatch[];
                 }),
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
                       console.error(`Amazon ASIN lookup failed for "${pref!.preferred_asin}":`, err);
                       return null;
                     })
-                  : searchAmazon(query, zipCode, 5).catch((err) => {
+                  : searchAmazon(query, zipCode, 15).catch((err) => {
                       console.error(`Amazon search failed for "${query}":`, err);
                       return [] as import('@/types').ProductMatch[];
                     }))
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
             krogerProducts = krogerResult ? [krogerResult as import('@/types').ProductMatch] : [];
             // If exact lookup failed, fall back to search
             if (krogerProducts.length === 0) {
-              krogerProducts = await searchKroger(query, locationId, 5, pref?.preferred_brand ?? undefined).catch(() => []);
+              krogerProducts = await searchKroger(query, locationId, 15, pref?.preferred_brand ?? undefined).catch(() => []);
             }
           } else {
             krogerProducts = krogerResult as import('@/types').ProductMatch[];
@@ -134,27 +134,47 @@ export async function GET(request: NextRequest) {
           // Regular searches: use a lenient threshold (20) — Kroger/Amazon's own
           // search engines already handle relevance. Fuse here only rejects extreme
           // outliers (e.g., a stock-fallback returning an unrelated category item).
-          const MIN_MATCH_SCORE = 20;
-          const byName = (a: import('@/types').ProductMatch, b: import('@/types').ProductMatch) => a.name.localeCompare(b.name);
+          // Low strictness: keep almost everything so the AI has a big pool to choose from.
+          const MIN_MATCH_SCORE = 10;
+          const byScore = (a: import('@/types').ProductMatch, b: import('@/types').ProductMatch) => b.match_score - a.match_score;
 
           const scoredKroger = (hasExactKroger && krogerProducts.length > 0)
             ? krogerProducts.map((p) => ({ ...p, match_score: 100 }))
-            : scoreMatches(query, krogerProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
+            : scoreMatches(query, krogerProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byScore);
 
           const scoredAmazon = (hasExactAmazon && amazonProducts.length > 0)
             ? amazonProducts.map((p) => ({ ...p, match_score: 100 }))
-            : scoreMatches(query, amazonProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
+            : scoreMatches(query, amazonProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byScore);
 
-          // AI re-scoring: use Groq to evaluate ambiguous matches (score 30–70)
-          // Pinned products (score 100) and clear matches are untouched.
+          // AI semantic matching: if the top fuzzy score < 80, send candidates to
+          // Groq to pick the best semantic match. Pinned products skip this.
           // If GROQ_API_KEY is not set, this is a no-op.
           const [aiKroger, aiAmazon] = await Promise.all([
-            hasExactKroger ? scoredKroger : reScoreAmbiguousMatches(query, scoredKroger),
-            hasExactAmazon ? scoredAmazon : reScoreAmbiguousMatches(query, scoredAmazon),
+            hasExactKroger ? scoredKroger : applySemanticMatching(query, scoredKroger),
+            hasExactAmazon ? scoredAmazon : applySemanticMatching(query, scoredAmazon),
           ]);
 
+          // ASIN price enrichment: SerpApi organic search results have no prices.
+          // Once we've identified the best Amazon match, do a single product-page
+          // lookup to get the real price. This is 1 extra API call per item, but
+          // it's the only reliable way to get Amazon pricing via SerpApi.
+          let finalAmazon = aiAmazon;
+          if (compareAmazon && !hasExactAmazon && aiAmazon.length > 0) {
+            const topAmazon = aiAmazon[0];
+            if (topAmazon.asin && topAmazon.price === 0) {
+              const enriched = await getAmazonProductByAsin(topAmazon.asin, zipCode).catch(() => null);
+              if (enriched && enriched.price > 0) {
+                console.log(`[compare] Amazon price enriched: "${topAmazon.name}" $${enriched.price}`);
+                finalAmazon = [
+                  { ...enriched, match_score: topAmazon.match_score, ai_reasoning: topAmazon.ai_reasoning },
+                  ...aiAmazon.slice(1),
+                ];
+              }
+            }
+          }
+
           // Perform comparison (pass preference so it can prioritize saved products)
-          return compareItem(resolved.listItem, aiKroger, aiAmazon, resolved.preference);
+          return compareItem(resolved.listItem, aiKroger, finalAmazon, resolved.preference);
         } catch (err) {
           console.error(`Error comparing item "${item.raw_text}":`, err);
           return {

@@ -61,6 +61,8 @@ export interface ProductMatch {
   is_prime?: boolean;   // Amazon Prime eligible
   match_score: number;  // 0-100 fuzzy match confidence
   ai_reasoning?: string; // AI-generated explanation for ambiguous matches
+  normalized_total_qty?: number;  // AI/parsed total quantity in base unit (oz, fl oz, ct)
+  normalized_qty_unit?: string;   // Base unit for normalized_total_qty
   department?: string | null;  // Kroger product category (e.g. "Dairy")
   link?: string;        // Direct product page URL
 }
@@ -93,6 +95,8 @@ export interface ComparisonResult {
   selected_amazon: ProductMatch | null;
   winner: 'kroger' | 'amazon' | 'tie';
   savings: number;
+  ppu_winner?: 'kroger' | 'amazon' | 'tie';  // Winner by price-per-unit
+  savings_note?: string;  // Normalized unit price comparison (e.g. "$0.12/oz vs $0.17/oz")
   price_per_unit: {
     kroger: number | null;
     amazon: number | null;
