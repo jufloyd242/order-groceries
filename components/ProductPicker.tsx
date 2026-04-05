@@ -18,7 +18,8 @@ interface ProductPickerProps {
 export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onCancel, store }: ProductPickerProps) {
   const [selected, setSelected] = useState<ProductMatch | null>(null);
   const [qty, setQty] = useState(1);
-  const [remember, setRemember] = useState(true);
+  // Default to unchecked — user must explicitly opt-in to saving this choice
+  const [remember, setRemember] = useState(false);
 
   function handleSelect(product: ProductMatch) {
     setSelected(product);

@@ -84,14 +84,25 @@ export function compareItem(
   let bestKroger: ProductMatch | null = null;
   let bestAmazon: ProductMatch | null = null;
 
+  // Pinned preferences (saved UPC/ASIN): bypass the fuzzy scorer entirely.
+  // The user explicitly chose this product, so match_score is irrelevant.
+  // Fall back to the top-scored match only if the pinned product isn't present
+  // in the result set (e.g. temporarily out of stock).
   if (preference?.preferred_upc) {
-    bestKroger = krogerMatches.find((p) => p.upc === preference.preferred_upc) || krogerMatches[0] || null;
+    bestKroger =
+      krogerMatches.find((p) => p.upc === preference.preferred_upc) ??
+      (krogerMatches[0] ?? null);
+    // Force score to 100 so the pin is never filtered out downstream
+    if (bestKroger) bestKroger = { ...bestKroger, match_score: 100 };
   } else {
     bestKroger = krogerMatches.length > 0 ? krogerMatches[0] : null;
   }
 
   if (preference?.preferred_asin) {
-    bestAmazon = amazonMatches.find((p) => p.asin === preference.preferred_asin) || amazonMatches[0] || null;
+    bestAmazon =
+      amazonMatches.find((p) => p.asin === preference.preferred_asin) ??
+      (amazonMatches[0] ?? null);
+    if (bestAmazon) bestAmazon = { ...bestAmazon, match_score: 100 };
   } else {
     bestAmazon = amazonMatches.length > 0 ? amazonMatches[0] : null;
   }

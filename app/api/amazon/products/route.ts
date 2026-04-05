@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
     const zip = searchParams.get('zip') || process.env.DEFAULT_ZIP_CODE || '80516';
+    const limit = Math.min(parseInt(searchParams.get('limit') || '5', 10), 20);
 
     if (!query) {
       return NextResponse.json(
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const products = await searchAmazonProducts(query, zip);
+    const products = await searchAmazonProducts(query, zip, limit);
 
     return NextResponse.json({
       success: true,

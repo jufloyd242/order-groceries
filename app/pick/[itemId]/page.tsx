@@ -19,6 +19,19 @@ export default function PickItemPage() {
   const searchParams = useSearchParams();
   const itemId = params.itemId as string;
   const storeFilter = searchParams.get('store');
+  // ids and amazon are forwarded from /compare so we can reconstruct the
+  // exact return URL after picking, preserving the active item subset.
+  const returnIds = searchParams.get('ids') || '';
+  const returnAmazon = searchParams.get('amazon') ?? 'true';
+
+  // Build the /compare return URL with all original context
+  function buildCompareUrl(): string {
+    const p = new URLSearchParams();
+    if (returnIds) p.set('ids', returnIds);
+    p.set('amazon', returnAmazon);
+    const qs = p.toString();
+    return qs ? `/compare?${qs}` : '/compare';
+  }
 
   useEffect(() => {
     fetchData();
@@ -56,15 +69,15 @@ export default function PickItemPage() {
         return;
       }
 
-      // 3. Parallel Search — only call the API for the required store
+      // 3. Parallel Search — fetch both stores regardless of store filter
+      // The pick screen always shows both so the user can cross-pick freely.
+      // Only skip a store if its required config is missing entirely.
       const query = targetItem.raw_text;
       const [kRes, aRes] = await Promise.all([
-        storeFilter === 'amazon'
-          ? null
-          : fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=10`),
-        storeFilter === 'kroger'
-          ? null
-          : fetch(`/api/amazon/products?q=${encodeURIComponent(query)}&zip=${zipCode}`),
+        locationId
+          ? fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=15`)
+          : null,
+        fetch(`/api/amazon/products?q=${encodeURIComponent(query)}&zip=${zipCode}&limit=15`),
       ]);
 
       const [kData, aData] = await Promise.all([
@@ -132,9 +145,9 @@ export default function PickItemPage() {
         }),
       });
 
-      // 3. If we came from /compare (store filter param), go back there
+      // 3. If we came from /compare (store filter param), go back there with context
       if (storeFilter) {
-        router.push('/compare');
+        router.push(buildCompareUrl());
         return;
       }
 
@@ -193,7 +206,7 @@ export default function PickItemPage() {
         kroger={krogerProducts}
         amazon={amazonProducts}
         onConfirm={handleConfirm}
-        onCancel={() => router.push('/compare')}
+        onCancel={() => router.push(buildCompareUrl())}
         store={(storeFilter as 'kroger' | 'amazon') ?? undefined}
       />
     </div>

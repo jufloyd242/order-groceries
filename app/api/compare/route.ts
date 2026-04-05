@@ -4,6 +4,7 @@ import { resolveItem } from '@/lib/matching/preferences';
 import { searchProducts as searchKroger, getProductByUpc } from '@/lib/kroger/products';
 import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
+import { reScoreAmbiguousMatches } from '@/lib/ai/groq';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
 import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
 
@@ -11,6 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const compareAmazon = searchParams.get('amazon') === 'true';
+    const idsParam = searchParams.get('ids');
+    const selectedIds = idsParam ? idsParam.split(',').filter(Boolean) : null;
 
     const supabase = await createClient();
 
@@ -36,11 +39,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Fetch list items
-    const { data: items, error: itemsError } = await supabase
+    // 2. Fetch list items — filter by selected IDs at DB level when provided
+    const baseQuery = supabase
       .from('list_items')
       .select('*')
       .order('created_at', { ascending: true });
+    const { data: items, error: itemsError } = await (
+      selectedIds && selectedIds.length > 0
+        ? baseQuery.in('id', selectedIds)
+        : baseQuery
+    );
 
     if (itemsError) throw itemsError;
     if (!items || items.length === 0) {
@@ -121,15 +129,32 @@ export async function GET(request: NextRequest) {
           // Combined raw count log — confirms data is flowing before fuzzy filtering
           console.log('Query:', query, 'Kroger Raw Count:', krogerProducts.length, 'Amazon Raw Count:', amazonProducts.length);
 
-          // Lower threshold (5) to surface weak matches during debugging.
-          // Raise back to 30 once Amazon results are confirmed working end-to-end.
-          const MIN_MATCH_SCORE = 5;
+          // Pinned products (saved UPC/ASIN): skip fuzzy scoring entirely.
+          // The user explicitly chose these, so any Fuse score is irrelevant.
+          // Regular searches: use a lenient threshold (20) — Kroger/Amazon's own
+          // search engines already handle relevance. Fuse here only rejects extreme
+          // outliers (e.g., a stock-fallback returning an unrelated category item).
+          const MIN_MATCH_SCORE = 20;
           const byName = (a: import('@/types').ProductMatch, b: import('@/types').ProductMatch) => a.name.localeCompare(b.name);
-          const scoredKroger = scoreMatches(query, krogerProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
-          const scoredAmazon = scoreMatches(query, amazonProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
+
+          const scoredKroger = (hasExactKroger && krogerProducts.length > 0)
+            ? krogerProducts.map((p) => ({ ...p, match_score: 100 }))
+            : scoreMatches(query, krogerProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
+
+          const scoredAmazon = (hasExactAmazon && amazonProducts.length > 0)
+            ? amazonProducts.map((p) => ({ ...p, match_score: 100 }))
+            : scoreMatches(query, amazonProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
+
+          // AI re-scoring: use Groq to evaluate ambiguous matches (score 30–70)
+          // Pinned products (score 100) and clear matches are untouched.
+          // If GROQ_API_KEY is not set, this is a no-op.
+          const [aiKroger, aiAmazon] = await Promise.all([
+            hasExactKroger ? scoredKroger : reScoreAmbiguousMatches(query, scoredKroger),
+            hasExactAmazon ? scoredAmazon : reScoreAmbiguousMatches(query, scoredAmazon),
+          ]);
 
           // Perform comparison (pass preference so it can prioritize saved products)
-          return compareItem(resolved.listItem, scoredKroger, scoredAmazon, resolved.preference);
+          return compareItem(resolved.listItem, aiKroger, aiAmazon, resolved.preference);
         } catch (err) {
           console.error(`Error comparing item "${item.raw_text}":`, err);
           return {

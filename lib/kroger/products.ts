@@ -104,7 +104,12 @@ export async function getProductByUpc(
   if (!result.success) return null;
 
   const product = mapKrogerProduct(result.data);
-  return product.price > 0 ? product : null;
+  // Return the product regardless of price — a price of $0 means the item is
+  // temporarily unpriced at this location, not that it doesn't exist. Returning
+  // null here causes the compare route to fall back to a generic text search
+  // which may return a completely different product and lose the user's pin.
+  // compareItem treats price=0 as "unavailable" and displays accordingly.
+  return product;
 }
 
 /**

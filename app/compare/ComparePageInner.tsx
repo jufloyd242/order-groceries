@@ -48,17 +48,17 @@ export default function ComparePageInner() {
     setLoading(true);
     setError(null);
     try {
-      const url = withAmazon ? '/api/compare?amazon=true' : '/api/compare';
+      const apiParams = new URLSearchParams();
+      if (withAmazon) apiParams.set('amazon', 'true');
+      if (idsParam) apiParams.set('ids', idsParam);
+      const url = `/api/compare?${apiParams}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        // Filter out purchased items, then apply id filter if coming from home page selection
-        let filtered: ComparisonResult[] = data.results.filter(
+        // Filter out purchased items — the API already scopes to selectedIds
+        const filtered: ComparisonResult[] = data.results.filter(
           (r: ComparisonResult) => r.item.status !== 'purchased'
         );
-        if (filteredIds && filteredIds.size > 0) {
-          filtered = filtered.filter((r: ComparisonResult) => filteredIds.has(r.item.id));
-        }
 
         // Recalculate summary for filtered results
         const summary = {
@@ -103,7 +103,12 @@ export default function ComparePageInner() {
       sessionStorage.removeItem(CACHE_KEY_KS);
       sessionStorage.removeItem(CACHE_KEY_AMAZON);
     } catch (_) {}
-    router.push(`/pick/${itemId}?store=${store}`);
+    // Carry the active ids + amazon context forward so the pick page can
+    // reconstruct the exact same /compare URL on return.
+    const returnParams = new URLSearchParams({ store });
+    if (idsParam) returnParams.set('ids', idsParam);
+    returnParams.set('amazon', String(includeAmazon));
+    router.push(`/pick/${itemId}?${returnParams}`);
   }
 
   if (loading) {

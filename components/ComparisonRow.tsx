@@ -15,7 +15,8 @@ interface ComparisonRowProps {
 export function ComparisonRow({ result, onPick, isAmazonSearched = false }: ComparisonRowProps) {
   const { item, selected_kroger, selected_amazon, winner, savings } = result;
   const { addItem } = useCart();
-  const [added, setAdded] = useState(false);
+  const [addedKroger, setAddedKroger] = useState(false);
+  const [addedAmazon, setAddedAmazon] = useState(false);
 
   // Treat falsy prices (0, undefined) as unavailable
   const krogerPrice = selected_kroger ? ((selected_kroger.promo_price ?? selected_kroger.price) || null) : null;
@@ -80,8 +81,20 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
             onClick={() => onPick(item.id, 'kroger')}
             style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px', marginTop: '4px' }}
           >
-            Change KS ▼
+            Change ▼
           </button>
+          {krogerPrice !== null && (
+            addedKroger ? (
+              <div style={{ fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 600, marginTop: '2px' }}>✓ Added</div>
+            ) : (
+              <button
+                onClick={() => { addItem(selected_kroger!, item.quantity ?? 1, item.id); setAddedKroger(true); }}
+                style={{ marginTop: '2px', padding: '3px 10px', borderRadius: '6px', border: 'none', background: '#84cc16', color: '#0a0a0a', fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer' }}
+              >
+                + Add
+              </button>
+            )
+          )}
         </div>
 
         {/* Amazon Price */}
@@ -122,15 +135,25 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
             onClick={() => onPick(item.id, 'amazon')}
             style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px', marginTop: '4px' }}
           >
-            Change AMZ ▼
+            Change ▼
           </button>
+          {amazonPrice !== null && amazonPrice > 0 && (
+            addedAmazon ? (
+              <div style={{ fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 600, marginTop: '2px' }}>✓ Added</div>
+            ) : (
+              <button
+                onClick={() => { addItem(selected_amazon!, item.quantity ?? 1, item.id); setAddedAmazon(true); }}
+                style={{ marginTop: '2px', padding: '3px 10px', borderRadius: '6px', border: 'none', background: '#ff9900', color: '#0a0a0a', fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer' }}
+              >
+                + Add
+              </button>
+            )
+          )}
         </div>
 
         {/* Result/Winner */}
         <div style={{ textAlign: 'right' }}>
-          {winner === 'tie' ? (
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>-</div>
-          ) : (
+          {winner !== 'tie' && (
             <div>
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-green)' }}>
                 ✅ {winner === 'kroger' ? 'KS' : 'AMZ'}
@@ -139,34 +162,6 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
                 Save ${savings.toFixed(2)}
               </div>
             </div>
-          )}
-          {!added ? (
-            <button
-              onClick={() => {
-                const product = winner === 'amazon' ? selected_amazon : selected_kroger;
-                if (product) {
-                  addItem(product, item.quantity ?? 1, item.id);
-                  setAdded(true);
-                }
-              }}
-              disabled={!selected_kroger && !selected_amazon}
-              style={{
-                marginTop: '6px',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                border: 'none',
-                background: '#84cc16',
-                color: '#0a0a0a',
-                fontWeight: 600,
-                fontSize: '0.72rem',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              + Add
-            </button>
-          ) : (
-            <div style={{ marginTop: '6px', fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 600 }}>✓ Added</div>
           )}
         </div>
 
