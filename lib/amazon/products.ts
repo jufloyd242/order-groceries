@@ -1,5 +1,10 @@
 import { ProductMatch } from '@/types';
-import { SerpApiAmazonResultSchema, SerpApiResponseSchema, SerpApiAmazonResult } from './schemas';
+import {
+  SerpApiAmazonResultSchema,
+  SerpApiResponseSchema,
+  SerpApiAmazonResult,
+  SerpApiProductPageSchema,
+} from './schemas';
 
 const SERPAPI_BASE = 'https://serpapi.com/search.json';
 
@@ -70,6 +75,90 @@ export async function searchAmazonProducts(
     // Only drop items that failed schema parsing — price=0 is kept so the
     // UI can show "Check Amazon for Price" rather than hiding the product.
     .filter((p): p is ProductMatch => p !== null);
+}
+
+/**
+ * Fetch a single Amazon product by ASIN using the amazon_product engine.
+ * Bypasses search entirely for exact product matching (analogous to Kroger's getProductByUpc).
+ * Returns the product if found, null otherwise.
+ *
+ * @param asin - Amazon Standard Identification Number (e.g., "B08XYZ123")
+ * @param zipCode - Zip code for localized pricing
+ */
+export async function getAmazonProductByAsin(
+  asin: string,
+  zipCode: string = '80516'
+): Promise<ProductMatch | null> {
+  const apiKey = process.env.SERPAPI_API_KEY;
+  if (!apiKey) {
+    throw new Error('SERPAPI_API_KEY is not set. Add it to your .env.local file.');
+  }
+
+  const params = new URLSearchParams({
+    engine: 'amazon_product',
+    amazon_domain: 'amazon.com',
+    asin,
+    api_key: apiKey,
+    zip_code: zipCode,
+  });
+
+  const res = await fetch(`${SERPAPI_BASE}?${params}`, {
+    next: { revalidate: 0 },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`[Amazon] ASIN lookup failed for "${asin}": ${res.status} ${body}`);
+    return null;
+  }
+
+  const raw = await res.json();
+  const parsed = SerpApiProductPageSchema.safeParse(raw);
+
+  if (!parsed.success || !parsed.data.product_results) {
+    console.warn(`[Amazon] ASIN lookup returned no product_results for "${asin}"`);
+    return null;
+  }
+
+  if (parsed.data.error) {
+    console.error(`[Amazon] SerpApi error for ASIN "${asin}": ${parsed.data.error}`);
+    return null;
+  }
+
+  const p = parsed.data.product_results;
+  const price = p.price?.value ?? 0;
+
+  const sizeMatch = (p.title ?? '').match(
+    /(\d+\.?\d*)\s*(oz|lb|ct|count|pack|pk|rolls?|fl oz|gal|qt|L|g|kg|sheets?)/i
+  );
+  const size = sizeMatch ? `${sizeMatch[1]} ${sizeMatch[2]}` : '';
+  const unit = sizeMatch ? normalizeUnit(sizeMatch[2]) : '';
+  let pricePerUnit = price;
+  if (sizeMatch) {
+    const sv = parseFloat(sizeMatch[1]);
+    if (sv > 0) pricePerUnit = price / sv;
+  }
+
+  const productUrl = p.link || `https://www.amazon.com/dp/${asin}`;
+
+  console.log(`[Amazon] ASIN "${asin}" resolved: "${p.title}" $${price || 'N/A'}`);
+
+  return {
+    id: asin,
+    name: p.title ?? asin,
+    brand: p.brand ?? extractBrand(p.title ?? ''),
+    price,
+    promo_price: null,
+    size,
+    unit,
+    price_per_unit: Math.round(pricePerUnit * 100) / 100,
+    image_url: p.thumbnail ?? null,
+    store: 'amazon',
+    asin,
+    is_prime: false,
+    link: productUrl,
+    match_score: 100, // Exact ASIN match — always top score
+  };
 }
 
 /**

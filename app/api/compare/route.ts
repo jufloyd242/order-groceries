@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { resolveItem } from '@/lib/matching/preferences';
 import { searchProducts as searchKroger, getProductByUpc } from '@/lib/kroger/products';
-import { searchAmazonProducts as searchAmazon } from '@/lib/amazon/products';
+import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
 import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
 
     const locationId = settings.kroger_location_id || process.env.KROGER_DEFAULT_LOCATION_ID;
     const zipCode = settings.default_zip_code || process.env.DEFAULT_ZIP_CODE || '80516';
+
+    console.log('[compare] Resolved locationId:', locationId ?? '(none)', '| zipCode:', zipCode);
 
     if (!locationId) {
       return NextResponse.json(
@@ -70,9 +72,9 @@ export async function GET(request: NextRequest) {
                 }),
             compareAmazon
               ? (hasExactAmazon
-                  ? searchAmazon(pref!.preferred_asin!, zipCode, 1).catch((err) => {
+                  ? getAmazonProductByAsin(pref!.preferred_asin!, zipCode).catch((err) => {
                       console.error(`Amazon ASIN lookup failed for "${pref!.preferred_asin}":`, err);
-                      return [] as import('@/types').ProductMatch[];
+                      return null;
                     })
                   : searchAmazon(query, zipCode, 5).catch((err) => {
                       console.error(`Amazon search failed for "${query}":`, err);
@@ -92,7 +94,15 @@ export async function GET(request: NextRequest) {
             krogerProducts = krogerResult as import('@/types').ProductMatch[];
           }
 
-          amazonProducts = amazonResult as import('@/types').ProductMatch[];
+          amazonProducts = hasExactAmazon
+            // getAmazonProductByAsin returns ProductMatch | null
+            ? (amazonResult ? [amazonResult as import('@/types').ProductMatch] : [])
+            : (amazonResult as import('@/types').ProductMatch[] ?? []);
+
+          // Debug: always log Amazon result count so we know if SerpApi is returning data at all
+          if (compareAmazon) {
+            console.log(`[Debug] Amazon found ${amazonProducts.length} items for query: "${query}"`);
+          }
 
           if (krogerProducts.length === 0) {
             console.log(`⚠️ Kroger search returned 0 results for "${query}" at location "${locationId}"`);
@@ -108,8 +118,12 @@ export async function GET(request: NextRequest) {
             console.log(`⚠️ Amazon returned 0 results for "${query}"`);
           }
 
-          // Score products with fuzzy matching and filter out weak matches
-          const MIN_MATCH_SCORE = 30;
+          // Combined raw count log — confirms data is flowing before fuzzy filtering
+          console.log('Query:', query, 'Kroger Raw Count:', krogerProducts.length, 'Amazon Raw Count:', amazonProducts.length);
+
+          // Lower threshold (5) to surface weak matches during debugging.
+          // Raise back to 30 once Amazon results are confirmed working end-to-end.
+          const MIN_MATCH_SCORE = 5;
           const byName = (a: import('@/types').ProductMatch, b: import('@/types').ProductMatch) => a.name.localeCompare(b.name);
           const scoredKroger = scoreMatches(query, krogerProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
           const scoredAmazon = scoreMatches(query, amazonProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);

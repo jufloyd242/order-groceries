@@ -49,20 +49,28 @@ export default function PickItemPage() {
       const locationId = settingsData.settings?.kroger_location_id;
       const zipCode = settingsData.settings?.default_zip_code || '80516';
 
-      if (!locationId) {
+      // Only need a valid Kroger location when searching King Soopers products
+      if (!locationId && storeFilter !== 'amazon') {
         setError('King Soopers Location ID not set in Settings.');
         setLoading(false);
         return;
       }
 
-      // 3. Parallel Search
+      // 3. Parallel Search — only call the API for the required store
       const query = targetItem.raw_text;
       const [kRes, aRes] = await Promise.all([
-        fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=10`),
-        fetch(`/api/amazon/products?q=${encodeURIComponent(query)}&zip=${zipCode}`),
+        storeFilter === 'amazon'
+          ? null
+          : fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=10`),
+        storeFilter === 'kroger'
+          ? null
+          : fetch(`/api/amazon/products?q=${encodeURIComponent(query)}&zip=${zipCode}`),
       ]);
 
-      const [kData, aData] = await Promise.all([kRes.json(), aRes.json()]);
+      const [kData, aData] = await Promise.all([
+        kRes ? kRes.json() : { success: false, products: [] },
+        aRes ? aRes.json() : { success: false, products: [] },
+      ]);
 
       if (kData.success) setKrogerProducts(kData.products);
       if (aData.success) setAmazonProducts(aData.products);
@@ -186,6 +194,7 @@ export default function PickItemPage() {
         amazon={amazonProducts}
         onConfirm={handleConfirm}
         onCancel={() => router.push('/compare')}
+        store={(storeFilter as 'kroger' | 'amazon') ?? undefined}
       />
     </div>
   );

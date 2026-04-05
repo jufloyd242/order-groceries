@@ -113,7 +113,7 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
             </div>
           ) : isAmazonSearched ? (
             /* Amazon was searched but returned no match for this item */
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not found</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No Close Match Found</div>
           ) : (
             /* Amazon wasn't included in this comparison run */
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not searched</div>

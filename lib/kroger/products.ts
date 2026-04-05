@@ -29,7 +29,10 @@ export async function searchProducts(
     'filter.term': query,
     'filter.locationId': locationId,
     'filter.limit': String(limit),
-    'filter.fulfillment': 'ais',  // Available In Store — locks results to locationId inventory
+    // Omitting filter.fulfillment intentionally — 'ais' (Available In Store) drops
+    // products that are temporarily out of stock even though they have valid prices,
+    // which was the primary cause of intermittent 0-result comparisons. The location
+    // ID is sufficient to get location-specific pricing.
   });
 
   // Add brand filter to narrow results and avoid category mismatches
@@ -78,7 +81,7 @@ export async function getProductByUpc(
   const params = new URLSearchParams({
     'filter.productId': upc,
     'filter.locationId': locationId,
-    'filter.fulfillment': 'ais',
+    // Omitting filter.fulfillment — same reason as searchProducts (see above)
   });
 
   const res = await fetch(`${KROGER_API_BASE}/products?${params}`, {
