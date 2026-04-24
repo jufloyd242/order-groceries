@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AddItemBar } from '../components/AddItemBar';
 import { ListItem, ListItemData } from '../components/ListItem';
@@ -10,13 +10,27 @@ import { BatchActionBar } from '../components/BatchActionBar';
 export default function Home() {
   const router = useRouter();
   const [items, setItems] = useState<ListItemData[]>([]);
-  const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [showPurchased, setShowPurchased] = useState(false);
   const [restoringPinned, setRestoringPinned] = useState(false);
   const [purchasedSelectedIds, setPurchasedSelectedIds] = useState<Set<string>>(new Set());
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowRef = useRef<HTMLDivElement>(null);
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const initialLoadDone = useRef(false);
+
+  // Close overflow menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOverflowOpen(false);
+      }
+    }
+    if (overflowOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [overflowOpen]);
 
   useEffect(() => {
     fetchItems();
@@ -35,6 +49,14 @@ export default function Home() {
       const data = await res.json();
       if (data.success) {
         setItems(data.items);
+        // On first load, pre-select all actionable items so the search count is visible
+        if (!initialLoadDone.current) {
+          initialLoadDone.current = true;
+          const preselect = (data.items as ListItemData[])
+            .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
+            .map((i) => i.id);
+          setSelectedIds(new Set(preselect));
+        }
       }
     } catch (err) {
       console.error('Failed to load list:', err);
@@ -46,7 +68,8 @@ export default function Home() {
     if (normalized.length === 0) return;
 
     try {
-      const itemsToAdd = normalized.map((t) => ({ raw_text: t, source: 'manual' as const }));
+      // New items are pinned by default — they persist through Clear All
+      const itemsToAdd = normalized.map((t) => ({ raw_text: t, source: 'manual' as const, persistent: true }));
       const res = await fetch('/api/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,10 +78,19 @@ export default function Home() {
       const data = await res.json();
       if (data.success) {
         await fetchItems();
+        // New items intentionally start unchecked — user opts them in explicitly
       }
     } catch (err) {
       console.error('Failed to add items:', err);
     }
+  }
+
+  function handleSkip(id: string) {
+    setSkippedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   }
 
   async function removeItem(id: string) {
@@ -88,6 +120,7 @@ export default function Home() {
       });
       setItems((prev) => prev.filter((i) => i.persistent || i.status === 'purchased'));
       setSelectedIds(new Set());
+      setSkippedIds(new Set());
     } catch (err) {
       console.error('Failed to clear list:', err);
     }
@@ -125,7 +158,19 @@ export default function Home() {
       body: JSON.stringify({ id, updates: { quantity: qty } }),
     }).catch((err) => {
       console.error('Failed to update quantity:', err);
-      // Roll back individual item (re-fetch to get real value)
+      fetchItems();
+    });
+  }
+
+  function handleRename(id: string, newText: string) {
+    // Optimistic — also clear normalized_text so it re-normalizes on next search
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, raw_text: newText, normalized_text: null } : i));
+    fetch('/api/list', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, updates: { raw_text: newText, normalized_text: null } }),
+    }).catch((err) => {
+      console.error('Failed to rename item:', err);
       fetchItems();
     });
   }
@@ -258,7 +303,7 @@ export default function Home() {
     : [];
 
   const selectableIds = todaysListItems
-    .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
+    .filter((i) => i.status !== 'carted' && i.status !== 'purchased' && !skippedIds.has(i.id))
     .map((i) => i.id);
 
   const allSelected =
@@ -282,23 +327,37 @@ export default function Home() {
   }
 
   function handleBatchSearch(stores: ('kroger' | 'amazon')[]) {
-    const selected = todaysListItems.filter((i) => selectedIds.has(i.id));
-    if (selected.length === 0) return;
-    const ids = selected.map((i) => i.id).join(',');
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
     const storeParam = stores.join(',');
-    router.push(`/search?mode=batch&ids=${encodeURIComponent(ids)}&stores=${encodeURIComponent(storeParam)}`);
+    router.push(`/search?mode=batch&ids=${encodeURIComponent(ids.join(','))}&stores=${encodeURIComponent(storeParam)}`);
   }
 
   function handleBatchCompare(withAmazon: boolean) {
-    const selected = todaysListItems.filter((i) => selectedIds.has(i.id));
-    if (selected.length === 0) return;
-    const ids = selected.map((i) => i.id).join(',');
-    const url = `/compare?ids=${encodeURIComponent(ids)}${withAmazon ? '&amazon=true' : ''}`;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const url = `/compare?ids=${encodeURIComponent(ids.join(','))}${withAmazon ? '&amazon=true' : ''}`;
     router.push(url);
   }
 
-  const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'matched').length;
   const cartedCount = items.filter((i) => i.status === 'carted').length;
+  const cartedIds = items.filter((i) => i.status === 'carted').map((i) => i.id);
+
+  async function revertCartItems() {
+    if (cartedIds.length === 0) return;
+    // Optimistic update
+    setItems((prev) => prev.map((i) => cartedIds.includes(i.id) ? { ...i, status: 'pending' } : i));
+    try {
+      await fetch('/api/list/revert-cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listItemIds: cartedIds }),
+      });
+    } catch (err) {
+      console.error('Failed to revert cart items:', err);
+      fetchItems(); // re-sync on error
+    }
+  }
 
   return (
     <div className="container" style={{ paddingBottom: '120px' }}>
@@ -306,33 +365,58 @@ export default function Home() {
       <header className="page-header" style={{ marginBottom: '1rem', paddingTop: '2.5rem' }}>
         <div>
           <h1 className="page-title">🛒 Grocery Inbox</h1>
-          {items.length > 0 && (
+          {skippedIds.size > 0 && (
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-              {pendingCount > 0 ? `${pendingCount} need finding` : ''}
-              {pendingCount > 0 && cartedCount > 0 ? ' · ' : ''}
-              {cartedCount > 0 ? `${cartedCount} in cart` : ''}
+              {skippedIds.size} skipped
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
           <SyncButton syncing={syncing} onSync={syncFromTodoist} />
-          <button
-            className="btn btn-primary"
-            onClick={restorePinned}
-            disabled={restoringPinned}
-            title="Move all pinned purchased items back to active list"
-          >
-            {restoringPinned ? '⏳' : '📌'} Restore Pinned
-          </button>
-          <button className="btn btn-secondary btn-icon" onClick={() => setBulkMode(!bulkMode)}>
-            📋
-          </button>
-          <button className="btn btn-secondary btn-icon" onClick={() => router.push('/preferences')}>
-            ⚙️
-          </button>
-          <button className="btn btn-secondary btn-icon" onClick={() => router.push('/settings')}>
-            🔧
-          </button>
+
+          {/* ⋯ Overflow menu */}
+          <div ref={overflowRef} style={{ position: 'relative' }}>
+            <button
+              className="btn btn-secondary btn-icon"
+              onClick={() => setOverflowOpen((v) => !v)}
+              aria-label="More options"
+              style={{ fontSize: '1.1rem', fontWeight: 700 }}
+            >
+              ⋯
+            </button>
+            {overflowOpen && (
+              <div style={{
+                position: 'absolute', top: '110%', right: 0, zIndex: 200,
+                background: 'var(--bg-secondary)', border: '1px solid var(--border-medium)',
+                borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                minWidth: 200, overflow: 'hidden',
+              }}>
+                {[
+                  { label: '📌 Restore Pinned', action: () => { restorePinned(); setOverflowOpen(false); }, disabled: restoringPinned, hint: 'Move pinned items back to list' },
+                  { label: '⚙️ Preferences', action: () => { router.push('/preferences'); setOverflowOpen(false); }, hint: 'Product mappings' },
+                  { label: '🔧 Settings', action: () => { router.push('/settings'); setOverflowOpen(false); }, hint: 'Store & API config' },
+                ].map(({ label, action, disabled, hint }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    disabled={disabled}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '10px 16px', background: 'none', border: 'none',
+                      color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+                      cursor: disabled ? 'default' : 'pointer', fontSize: '0.9rem',
+                      borderBottom: '1px solid var(--border-subtle)',
+                    }}
+                    onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                    title={hint}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -353,7 +437,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Selection Mode bar — shown above the list when items are checked */}
+      {/* Search/Compare bar — always visible when the list has items */}
       <BatchActionBar
         selectedCount={selectedIds.size}
         onSearch={handleBatchSearch}
@@ -362,7 +446,7 @@ export default function Home() {
       />
 
       {/* Add Item Input */}
-      <AddItemBar onAdd={addItems} bulkMode={bulkMode} setBulkMode={setBulkMode} />
+      <AddItemBar onAdd={addItems} />
 
       {/* Shopping List */}
       {todaysListItems.length > 0 && (
@@ -389,28 +473,24 @@ export default function Home() {
                 {todaysListItems.length} item{todaysListItems.length !== 1 ? 's' : ''}
               </span>
             </h2>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {purchasedItems.length > 0 && (
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '4px 12px', color: showPurchased ? '#84cc16' : undefined }}
-                  onClick={() => setShowPurchased((v) => !v)}
-                >
-                  {showPurchased ? '▲' : '▼'} Purchased ({purchasedItems.length})
-                </button>
-              )}
-              <button
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem', padding: '4px 12px' }}
-                onClick={clearList}
-              >
-                Clear All
-              </button>
-            </div>
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+              onClick={clearList}
+            >
+              Clear All
+            </button>
           </div>
 
           <div>
-            {/* 📌 Pinned shelf — always at top, any status */}
+            {/* 📌 Pinned shelf */}
+            {pinnedItems.length > 0 && (
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700,
+                            letterSpacing: '0.1em', textTransform: 'uppercase',
+                            padding: '0 0 4px', opacity: 0.7 }}>
+                📌 Staples
+              </div>
+            )}
             {pinnedItems.map((item, index) => (
               <ListItem
                 key={item.id}
@@ -418,9 +498,12 @@ export default function Home() {
                 index={index}
                 onRemove={removeItem}
                 selected={selectedIds.has(item.id)}
+                skipped={skippedIds.has(item.id)}
                 onToggle={toggleSelect}
                 onTogglePersistent={togglePersistent}
                 onQuantityChange={handleQuantityChange}
+                onSkip={handleSkip}
+                onRename={handleRename}
               />
             ))}
 
@@ -453,9 +536,12 @@ export default function Home() {
                       index={pinnedItems.length + index}
                       onRemove={removeItem}
                       selected={selectedIds.has(item.id)}
+                      skipped={skippedIds.has(item.id)}
                       onToggle={toggleSelect}
                       onTogglePersistent={togglePersistent}
                       onQuantityChange={handleQuantityChange}
+                      onSkip={handleSkip}
+                      onRename={handleRename}
                     />
                   ))}
                 </div>
@@ -468,9 +554,12 @@ export default function Home() {
                   index={pinnedItems.length + index}
                   onRemove={removeItem}
                   selected={selectedIds.has(item.id)}
+                  skipped={skippedIds.has(item.id)}
                   onToggle={toggleSelect}
                   onTogglePersistent={togglePersistent}
                   onQuantityChange={handleQuantityChange}
+                  onSkip={handleSkip}
+                  onRename={handleRename}
                 />
               ))
             )}
@@ -478,86 +567,83 @@ export default function Home() {
         </div>
       )}
 
-      {/* Previously Purchased (standalone — visible even when active list is empty) */}
+      {/* Previously Purchased */}
       {purchasedItems.length > 0 && (
         <div className="glass-card" style={{ marginTop: 'var(--space-lg)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
-                PREVIOUSLY PURCHASED
-              </h2>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.9rem' }}>
-                {purchasedItems.length} item{purchasedItems.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {purchasedSelectedIds.size > 0 && (
-                <button
-                  className="btn btn-primary"
-                  style={{ fontSize: '0.78rem', padding: '4px 14px' }}
-                  onClick={reorderSelected}
-                >
-                  ↩ Reorder {purchasedSelectedIds.size} selected
-                </button>
-              )}
-              <button
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem', padding: '4px 12px', color: showPurchased ? '#84cc16' : undefined }}
-                onClick={() => setShowPurchased((v) => !v)}
-              >
-                {showPurchased ? '▲ Hide' : '▼ Show'}
-              </button>
-            </div>
-          </div>
+          {/* Header row — always visible */}
+          <button
+            onClick={() => setShowPurchased((v) => !v)}
+            style={{
+              display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center',
+              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 8px',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              {showPurchased ? '▲' : '▼'} Previously Purchased
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              {purchasedItems.length} item{purchasedItems.length !== 1 ? 's' : ''}
+              {purchasedSelectedIds.size > 0 && ` · ${purchasedSelectedIds.size} selected`}
+            </span>
+          </button>
 
-          {showPurchased && purchasedItems.length > 0 && (
+          {showPurchased && (
             <div>
+              {/* Bulk reorder action */}
+              {purchasedSelectedIds.size > 0 && (
+                <div style={{ marginBottom: '8px' }}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '5px 14px' }}
+                    onClick={reorderSelected}
+                  >
+                    ↩ Re-add {purchasedSelectedIds.size} to list
+                  </button>
+                </div>
+              )}
+
               {purchasedItems.map((item) => (
                 <div
                   key={item.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                 >
                   <input
                     type="checkbox"
                     checked={purchasedSelectedIds.has(item.id)}
                     onChange={() => setPurchasedSelectedIds((prev) => {
                       const next = new Set(prev);
-                      if (next.has(item.id)) next.delete(item.id);
-                      else next.add(item.id);
+                      next.has(item.id) ? next.delete(item.id) : next.add(item.id);
                       return next;
                     })}
-                    style={{ width: 16, height: 16, flexShrink: 0, accentColor: '#84cc16', cursor: 'pointer' }}
+                    style={{ width: 15, height: 15, flexShrink: 0, accentColor: '#84cc16', cursor: 'pointer' }}
                   />
-                  <div style={{ flex: 1, fontSize: '0.9rem', textDecoration: 'line-through', color: 'var(--text-secondary)', opacity: 0.65 }}>
-                    {item.raw_text}
-                    {item.preference && (
-                      <span style={{ marginLeft: 8, fontSize: '0.72rem', textDecoration: 'none', color: '#4ade80' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: '0.9rem', textDecoration: 'line-through', color: 'var(--text-secondary)', opacity: 0.6 }}>
+                      {item.raw_text}
+                    </span>
+                    {item.preference && item.preference.display_name.toLowerCase() !== item.raw_text.toLowerCase() && (
+                      <span style={{ marginLeft: 6, fontSize: '0.72rem', textDecoration: 'none', color: 'var(--text-muted)' }}>
                         · {item.preference.display_name}
                       </span>
                     )}
                   </div>
+                  {/* Pin toggle */}
                   <button
                     onClick={() => togglePersistent(item.id)}
-                    title={item.persistent ? 'Pinned — click to unpin' : 'Pin to restore with "Restore Pinned"'}
+                    title={item.persistent ? 'Pinned — click to unpin' : 'Pin to restore later'}
                     style={{
-                      background: item.persistent ? 'rgba(132, 204, 22, 0.12)' : 'none',
-                      border: item.persistent ? '1px solid rgba(132, 204, 22, 0.35)' : '1px solid transparent',
-                      borderRadius: '6px',
-                      color: item.persistent ? '#84cc16' : '#475569',
-                      fontSize: '0.78rem',
-                      cursor: 'pointer',
-                      padding: '3px 6px',
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '3px',
+                      background: item.persistent ? 'rgba(132,204,22,0.12)' : 'none',
+                      border: item.persistent ? '1px solid rgba(132,204,22,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: 6, color: item.persistent ? '#84cc16' : '#475569',
+                      fontSize: '0.72rem', cursor: 'pointer', padding: '2px 6px', flexShrink: 0,
                     }}
                   >
-                    {item.persistent ? '📌 Pinned' : '📌'}
+                    📌
                   </button>
                   <button
                     className="btn btn-secondary btn-icon"
-                    style={{ fontSize: '0.9rem', width: 28, height: 28, flexShrink: 0 }}
+                    style={{ fontSize: '0.85rem', width: 26, height: 26, flexShrink: 0, opacity: 0.6 }}
                     onClick={() => removeItem(item.id)}
                     aria-label="Remove"
                   >
@@ -590,16 +676,40 @@ export default function Home() {
         </div>
       )}
 
-      {/* Compare prices hint */}
+      {/* Carted items banner — shown when DB has items stuck in 'carted' state */}
       {cartedCount > 0 && (
-        <div style={{ marginTop: 'var(--space-lg)', textAlign: 'center' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => router.push('/compare')}
-            style={{ fontSize: '0.9rem' }}
-          >
-            📊 Compare prices across stores
-          </button>
+        <div
+          className="glass-card animate-fade-in"
+          style={{
+            marginTop: 'var(--space-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            padding: '10px 16px',
+            border: '1px solid rgba(34,197,94,0.25)',
+            background: 'rgba(34,197,94,0.06)',
+          }}
+        >
+          <span style={{ fontSize: '0.9rem', color: '#4ade80' }}>
+            ✅ {cartedCount} item{cartedCount !== 1 ? 's' : ''} added to cart
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '4px 12px' }}
+              onClick={() => router.push('/compare')}
+            >
+              📊 Compare
+            </button>
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '4px 12px', color: 'var(--text-muted)' }}
+              onClick={revertCartItems}
+            >
+              ↩ Not in cart
+            </button>
+          </div>
         </div>
       )}
 

@@ -13,12 +13,27 @@ export interface ListItem {
   preference_id: string | null;
   status: 'pending' | 'matched' | 'compared' | 'carted' | 'purchased';
   created_at: string;
+  persistent?: boolean;        // pinned staple — survives Clear All
+  department?: string | null;  // Kroger aisle category
+}
+
+// UI-layer type: ListItem + joined preference data from the API response
+export interface UIListItemPreference {
+  display_name: string;
+  preferred_upc?: string | null;
+  preferred_asin?: string | null;
+  image_url?: string | null;
+}
+
+export interface UIListItem extends ListItem {
+  preference?: UIListItemPreference | null;
 }
 
 export interface NewListItem {
   raw_text: string;
   source?: 'manual' | 'todoist';
   todoist_task_id?: string;
+  persistent?: boolean;
 }
 
 // ─── Todoist ──────────────────────────────────────────────────

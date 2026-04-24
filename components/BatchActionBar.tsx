@@ -45,7 +45,7 @@ export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: 
         }
       `}</style>
 
-      {/* Clear selection button */}
+      {/* Clear selection */}
       <button
         onClick={onClear}
         title="Clear selection"
