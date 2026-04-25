@@ -134,49 +134,51 @@ export default function ComparePageInner() {
 
   if (error) {
     return (
-      <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-2xl)' }}>
-        <div style={{ fontSize: '3rem', color: 'var(--accent-red)', marginBottom: 'var(--space-md)' }}>⚠️</div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Error Loading Comparison</h1>
-        <p style={{ color: 'var(--accent-red)', marginTop: 'var(--space-sm)' }}>{error}</p>
-        <button className="btn btn-primary" onClick={() => fetchComparison(includeAmazon)} style={{ marginTop: 'var(--space-md)' }}>Try Again</button>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-16 text-center">
+        <span className="material-symbols-outlined text-error" style={{ fontSize: '3rem' }}>error</span>
+        <h1 className="text-xl font-semibold text-on-surface mt-4">Error Loading Comparison</h1>
+        <p className="text-error mt-2">{error}</p>
+        <button
+          className="mt-4 px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm border-none cursor-pointer hover:bg-[#0d4430] transition-colors"
+          onClick={() => fetchComparison(includeAmazon)}
+        >Try Again</button>
       </div>
     );
   }
 
   return (
-    <div className="container" style={{ paddingBottom: '120px' }}>
-      <header className="page-header" style={{ marginBottom: 'var(--space-xl)', paddingTop: '2.5rem' }}>
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pb-32">
+      <header className="flex items-start justify-between mb-8 pt-10">
         <div>
-          <h1 className="page-title">📊 Price Comparison</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>
+          <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>Price Comparison</h1>
+          <p className="text-on-surface-variant mt-1">
             Comparing King Soopers{includeAmazon ? ' & Amazon' : ''} for{' '}
             {filteredIds ? `${results.length} selected item${results.length !== 1 ? 's' : ''}` : `${results.length} item${results.length !== 1 ? 's' : ''}`}.
           </p>
-          <div style={{ marginTop: '0.75rem' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+          <div className="mt-3">
+            <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-on-surface">
               <input
                 type="checkbox"
                 checked={includeAmazon}
                 onChange={(e) => {
                   const newValue = e.target.checked;
-                  // Evict cache for the target state so we always fetch fresh data after toggle
                   try { sessionStorage.removeItem(newValue ? CACHE_KEY_AMAZON : CACHE_KEY_KS); } catch (_) {}
                   setIncludeAmazon(newValue);
                   fetchComparison(newValue);
                 }}
-                style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+                className="w-4 h-4 cursor-pointer accent-primary"
               />
-              🚀 Compare with Amazon <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(slower)</span>
+              Compare with Amazon <span className="text-outline font-normal">(slower)</span>
             </label>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+        <div className="text-right">
+          <div className="text-2xl font-bold text-primary">
             {includeAmazon
-              ? `Total Savings: $${summary?.totalSavings.toFixed(2)}`
-              : `King Soopers Total: $${summary?.krogerCartTotal.toFixed(2)}`}
+              ? `Save $${summary?.totalSavings.toFixed(2)}`
+              : `KS Total: $${summary?.krogerCartTotal.toFixed(2)}`}
           </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          <div className="text-xs text-outline mt-1">
             {includeAmazon ? 'Based on current best matches' : 'Toggle Amazon above to compare prices'}
           </div>
         </div>
@@ -203,45 +205,19 @@ export default function ComparePageInner() {
         return (
           <button
             onClick={optimizeCart}
+            className="fixed bottom-24 right-4 z-[800] flex items-center gap-2 px-4 py-2.5 rounded-full border-none cursor-pointer text-sm font-bold text-on-primary whitespace-nowrap transition-all hover:scale-105 active:scale-95"
             style={{
-              position: 'fixed',
-              bottom: '96px',
-              right: '16px',
-              zIndex: 800,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.6rem 1rem',
-              borderRadius: '2rem',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              color: '#0f172a',
-              backgroundColor: optimized ? '#4ade80' : '#84cc16',
-              boxShadow: '0 4px 16px rgba(132,204,22,0.45)',
-              transition: 'background-color 0.2s, transform 0.15s, box-shadow 0.15s',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(132,204,22,0.6)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 4px 16px rgba(132,204,22,0.45)';
+              backgroundColor: optimized ? '#22c55e' : '#0f5238',
+              boxShadow: '0 4px 16px rgba(15,82,56,0.4)',
             }}
             aria-label={`Optimize My Cart — add ${clearWinners.length} best-price items`}
           >
-            {optimized ? '✅' : '⚡'}
-            {optimized ? 'Cart Optimized!' : `Optimize My Cart`}
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>
+              {optimized ? 'check_circle' : 'auto_awesome'}
+            </span>
+            {optimized ? 'Cart Optimized!' : 'Optimize My Cart'}
             {!optimized && (
-              <span style={{
-                backgroundColor: 'rgba(0,0,0,0.15)',
-                borderRadius: '1rem',
-                padding: '0.1rem 0.45rem',
-                fontSize: '0.75rem',
-              }}>
+              <span className="bg-black/20 rounded-full px-2 py-0.5 text-xs">
                 {clearWinners.length}
               </span>
             )}
@@ -250,8 +226,11 @@ export default function ComparePageInner() {
       })()}
 
       {/* Dashboard Footer / Home link */}
-      <footer style={{ marginTop: 'var(--space-2xl)', textAlign: 'center' }}>
-        <button className="btn btn-secondary" onClick={() => router.push('/')}>
+      <footer className="mt-12 text-center">
+        <button
+          className="px-4 py-2 bg-white text-primary border-2 border-primary/15 rounded-xl font-semibold text-sm hover:bg-primary/5 transition-colors cursor-pointer"
+          onClick={() => router.push('/')}
+        >
           ← Back to Inbox
         </button>
       </footer>
@@ -289,9 +268,9 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
   }, [messages.length]);
 
   return (
-    <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 flex items-center justify-center min-h-[70vh]">
       <div
-        className="glass-card"
+        className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)]"
         style={{
           padding: '2.5rem 2rem',
           maxWidth: '420px',
@@ -309,7 +288,7 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
             left: '10%',
             right: '10%',
             height: '2px',
-            background: 'linear-gradient(90deg, transparent, rgba(132,204,22,0.4), transparent)',
+            background: 'linear-gradient(90deg, transparent, rgba(15,82,56,0.3), transparent)',
             borderRadius: '1px',
           }} />
 
@@ -319,12 +298,12 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
             bottom: '16px',
             left: '50%',
             transform: 'translateX(-50%)',
-            fontSize: '3rem',
             lineHeight: 1,
             animation: 'cartBounce 1.6s ease-in-out infinite',
             userSelect: 'none',
+            color: '#0f5238',
           }}>
-            🛒
+            <span className="material-symbols-outlined" style={{ fontSize: '3rem', fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
           </div>
 
           {/* Speed lines */}
@@ -337,7 +316,7 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
                 left: `${left}%`,
                 width: `${10 + (i % 3) * 6}px`,
                 height: '2px',
-                background: 'rgba(132,204,22,0.25)',
+                background: 'rgba(15,82,56,0.18)',
                 borderRadius: '1px',
                 animation: `cartBounce ${1.6 + i * 0.1}s ease-in-out infinite`,
                 animationDelay: `${i * 0.08}s`,
@@ -361,20 +340,18 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
         </div>
 
         {/* Title */}
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-          {includeAmazon ? '🔍 Comparing Prices…' : '🟢 Fetching King Soopers Prices…'}
+        <h2 className="text-lg font-bold text-on-surface mb-1">
+          {includeAmazon ? 'Comparing Prices…' : 'Fetching King Soopers Prices…'}
         </h2>
 
         {/* Rotating message */}
         <p
           key={msgIndex}
+          className="text-sm text-on-surface-variant italic"
           style={{
-            fontSize: '0.9rem',
-            color: 'var(--text-secondary)',
             minHeight: '2.6em',
             margin: '0.75rem 0',
             animation: 'fadeMsg 3s ease-in-out forwards',
-            fontStyle: 'italic',
           }}
         >
           {messages[msgIndex]}
@@ -382,7 +359,7 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
 
         {/* Time warning */}
         {includeAmazon && (
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
+          <p className="text-xs text-outline mt-4">
             Amazon lookups take 10–20 seconds.
           </p>
         )}

@@ -4,7 +4,7 @@
  */
 
 const shimmerStyle: React.CSSProperties = {
-  background: 'linear-gradient(90deg, var(--bg-card, #1a1a1a) 25%, var(--border-subtle, #2a2a2a) 50%, var(--bg-card, #1a1a1a) 75%)',
+  background: 'linear-gradient(90deg, #edeeef 25%, #e1e3e4 50%, #edeeef 75%)',
   backgroundSize: '200% 100%',
   animation: 'skeleton-shimmer 1.5s infinite',
   borderRadius: '6px',

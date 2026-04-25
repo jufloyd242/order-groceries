@@ -19,14 +19,23 @@ interface ListItemProps {
   onRename: (id: string, newText: string) => void;
 }
 
-// Department → emoji icon used as thumbnail fallback
+// Department → Material Symbols icon name
+const DEPT_ICON: Record<string, string> = {
+  Produce: 'nutrition', Bakery: 'bakery_dining', Deli: 'lunch_dining',
+  Meat: 'kebab_dining', Seafood: 'set_meal', Dairy: 'egg',
+  Frozen: 'ac_unit', Beverages: 'local_cafe', Snacks: 'cookie',
+  Pantry: 'kitchen', Household: 'cleaning_services', 'Personal Care': 'face',
+  'Pet Care': 'pets', Other: 'shopping_basket',
+};
+
+// Department → emoji fallback (when Material Symbols not loaded)
 const DEPT_EMOJI: Record<string, string> = {
   Produce: '🥦', Bakery: '🍞', Deli: '🧀', Meat: '🥩', Seafood: '🐟',
   Dairy: '🥛', Frozen: '🧊', Beverages: '🥤', Snacks: '🍿', Pantry: '🥫',
   Household: '🧹', 'Personal Care': '🧴', 'Pet Care': '🐾', Other: '🛒',
 };
 
-function deptIcon(dept?: string | null): string {
+function deptEmoji(dept?: string | null): string {
   if (!dept) return '🛒';
   return DEPT_EMOJI[dept] ?? '🛒';
 }
@@ -43,7 +52,6 @@ export function ListItem({
   onSkip,
   onRename,
 }: ListItemProps) {
-  const [stepperOpen, setStepperOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const editRef = useRef<HTMLInputElement>(null);
@@ -52,118 +60,82 @@ export function ListItem({
     if (isLocked) return;
     setEditValue(item.raw_text);
     setEditing(true);
-    // Focus after render
     setTimeout(() => editRef.current?.select(), 0);
   }
 
   function commitEdit() {
     const trimmed = editValue.trim();
-    if (trimmed && trimmed !== item.raw_text) {
-      onRename(item.id, trimmed);
-    }
+    if (trimmed && trimmed !== item.raw_text) onRename(item.id, trimmed);
     setEditing(false);
   }
 
   function handleEditKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-    if (e.key === 'Escape') { setEditing(false); }
+    if (e.key === 'Escape') setEditing(false);
   }
 
-  const isCarted = item.status === 'carted';
+  const isCarted    = item.status === 'carted';
   const isPurchased = item.status === 'purchased';
-  const isLocked = isCarted || isPurchased;
-  const qty = item.quantity ?? 1;
-
+  const isLocked    = isCarted || isPurchased;
+  const qty         = item.quantity ?? 1;
+  const imageUrl    = item.preference?.image_url ?? null;
   const searchQuery = encodeURIComponent(item.normalized_text || item.raw_text);
-  const imageUrl = item.preference?.image_url ?? null;
 
-  // Show mapping sub-line only when the mapped name differs meaningfully from raw text
   const mappingDiffers =
     item.preference &&
     item.preference.display_name.trim().toLowerCase() !== item.raw_text.trim().toLowerCase();
 
+  // Quantity step: decrease
+  function decQty() {
+    const next = Math.max(1, qty - 1);
+    onQuantityChange(item.id, next);
+  }
+
   return (
-    // Outer wrapper provides the lime left-border accent for pinned items
     <div
+      className="group flex items-center gap-3 px-4 py-3 hover:bg-[rgba(15,82,56,0.025)] rounded-xl border border-transparent hover:border-[#edeeef] transition-all duration-150 animate-fade-in"
       style={{
-        borderLeft: item.persistent
-          ? '2px solid var(--accent-green)'
-          : '2px solid transparent',
-        marginLeft: -14,
-        paddingLeft: 12,
-        borderRadius: 4,
-        opacity: skipped ? 0.38 : 1,
-        transition: 'opacity 0.15s ease',
+        animationDelay: `${index * 40}ms`,
+        borderLeftWidth: item.persistent ? 3 : 0,
+        borderLeftColor: item.persistent ? '#0f5238' : 'transparent',
+        borderLeftStyle: 'solid',
+        paddingLeft: item.persistent ? '13px' : '16px',
+        opacity: skipped ? 0.4 : 1,
+        transition: 'opacity 0.15s ease, border-color 0.15s ease',
       }}
     >
-    <div
-      className="list-item animate-fade-in"
-      style={{ animationDelay: `${index * 50}ms`, display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px' }}
-    >
-      {/* Checkbox */}
+      {/* ── Checkbox ── */}
       <input
         type="checkbox"
         checked={isLocked ? true : selected}
         disabled={isLocked || skipped}
         onChange={() => !isLocked && !skipped && onToggle(item.id)}
-        style={{
-          width: 17,
-          height: 17,
-          flexShrink: 0,
-          accentColor: isLocked ? '#22c55e' : '#84cc16',
-          cursor: isLocked || skipped ? 'default' : 'pointer',
-          opacity: isLocked || skipped ? 0.45 : 1,
-        }}
+        className="w-5 h-5 rounded flex-shrink-0 cursor-pointer disabled:cursor-default accent-[#0f5238]"
+        style={{ opacity: isLocked || skipped ? 0.45 : 1 }}
+        aria-label={`Select ${item.raw_text}`}
       />
 
-      {/* Thumbnail: product image if available, else dept emoji */}
+      {/* ── Thumbnail ── */}
       <div
-        style={{
-          width: 40,
-          height: 40,
-          flexShrink: 0,
-          borderRadius: 8,
-          overflow: 'hidden',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '1.35rem',
-          opacity: isLocked ? 0.4 : 1,
-        }}
+        className="w-10 h-10 flex-shrink-0 rounded-lg bg-surface-container-low overflow-hidden flex items-center justify-center text-base border border-[#edeeef]"
+        style={{ opacity: isLocked ? 0.45 : 1 }}
       >
         {imageUrl ? (
           <img
             src={imageUrl}
             alt=""
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            className="w-full h-full object-cover"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
         ) : (
-          deptIcon(item.department)
+          <span>{deptEmoji(item.department)}</span>
         )}
       </div>
 
-      {/* Text block */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Primary row: pin indicator + name + status dot */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          {/* Subtle pin indicator — click to toggle */}
-          {item.persistent && (
-            <button
-              onClick={() => onTogglePersistent(item.id)}
-              title="Pinned — click to unpin"
-              style={{
-                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                fontSize: '0.75rem', lineHeight: 1, flexShrink: 0, opacity: 0.65,
-              }}
-              aria-label="Unpin item"
-            >
-              📌
-            </button>
-          )}
-
+      {/* ── Text block ── */}
+      <div className="flex-1 min-w-0">
+        {/* Name row */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           {editing ? (
             <input
               ref={editRef}
@@ -172,34 +144,16 @@ export function ListItem({
               onBlur={commitEdit}
               onKeyDown={handleEditKey}
               autoFocus
-              style={{
-                fontWeight: 600,
-                fontSize: '1rem',
-                letterSpacing: '-0.01em',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(132,204,22,0.5)',
-                borderRadius: 5,
-                color: 'var(--text-primary)',
-                padding: '1px 6px',
-                outline: 'none',
-                width: '100%',
-                maxWidth: 280,
-              }}
+              className="font-semibold text-sm text-on-surface bg-surface-container-low border border-primary/40 rounded-md px-2 py-0.5 outline-none w-full max-w-xs focus:ring-2 focus:ring-primary/20"
             />
           ) : (
             <span
               onDoubleClick={startEdit}
               title={isLocked ? undefined : 'Double-click to edit'}
+              className="font-semibold text-sm text-on-surface truncate max-w-[220px] sm:max-w-xs"
               style={{
-                fontWeight: 600,
-                fontSize: '1rem',
-                letterSpacing: '-0.01em',
                 textDecoration: isLocked ? 'line-through' : 'none',
-                opacity: isLocked ? 0.45 : 1,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '100%',
+                opacity: isLocked ? 0.5 : 1,
                 cursor: isLocked ? 'default' : 'text',
               }}
             >
@@ -207,222 +161,122 @@ export function ListItem({
             </span>
           )}
 
-          {/* Status dot */}
+          {/* Status dots */}
           {isCarted && (
-            <span
-              title="In cart"
-              style={{
-                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                backgroundColor: '#22c55e', flexShrink: 0, boxShadow: '0 0 4px rgba(34,197,94,0.6)',
-              }}
-            />
+            <span className="inline-block w-2 h-2 rounded-full bg-[#22c55e] flex-shrink-0 shadow-[0_0_4px_rgba(34,197,94,0.5)]" title="In cart" />
           )}
           {isPurchased && (
-            <span
-              title="Purchased"
-              style={{
-                display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                backgroundColor: '#475569', flexShrink: 0,
-              }}
-            />
+            <span className="inline-block w-2 h-2 rounded-full bg-outline flex-shrink-0" title="Purchased" />
           )}
 
-          {/* Todoist source badge — compact */}
+          {/* Todoist badge */}
           {!isLocked && item.source === 'todoist' && (
-            <span style={{
-              fontSize: '0.62rem', fontWeight: 600, color: '#60a5fa',
-              background: 'rgba(59,130,246,0.12)', borderRadius: 4, padding: '1px 5px',
-              letterSpacing: '0.03em', flexShrink: 0,
-            }}>
+            <span className="text-[10px] font-semibold text-kroger bg-kroger/10 rounded px-1.5 py-0.5 flex-shrink-0 tracking-wide">
               Todoist
             </span>
           )}
         </div>
 
-        {/* Secondary row: mapped product — whole line is tappable link */}
+        {/* Mapping sub-line */}
         {mappingDiffers && (
           <a
             href={`/search?itemId=${item.id}&q=${searchQuery}`}
-            style={{
-              display: 'block',
-              marginTop: 2,
-              fontSize: '0.71rem',
-              color: 'var(--text-muted)',
-              textDecoration: 'none',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
+            className="block mt-0.5 text-[11px] text-outline truncate hover:text-primary transition-colors no-underline"
           >
             {item.preference!.display_name} ✏️
           </a>
         )}
       </div>
 
-      {/* Right-side controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-        {/* Quantity — show badge when >1, stepper when badge tapped */}
-        {!isLocked && (
-          stepperOpen ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              <button
-                onClick={() => {
-                  const next = Math.max(1, qty - 1);
-                  onQuantityChange(item.id, next);
-                  if (next === 1) setStepperOpen(false);
-                }}
-                aria-label="Decrease quantity"
-                style={{
-                  background: 'none', border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: 4, color: qty <= 1 ? '#334155' : 'var(--text-secondary)',
-                  fontSize: '0.78rem', cursor: qty <= 1 ? 'default' : 'pointer',
-                  width: 22, height: 22, padding: 0, flexShrink: 0,
-                }}
-              >
-                −
-              </button>
-              <span style={{ minWidth: 18, textAlign: 'center', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                {qty}
-              </span>
-              <button
-                onClick={() => onQuantityChange(item.id, qty + 1)}
-                aria-label="Increase quantity"
-                style={{
-                  background: 'none', border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: 4, color: 'var(--text-secondary)',
-                  fontSize: '0.78rem', cursor: 'pointer',
-                  width: 22, height: 22, padding: 0, flexShrink: 0,
-                }}
-              >
-                +
-              </button>
-              <button
-                onClick={() => setStepperOpen(false)}
-                aria-label="Close quantity editor"
-                style={{
-                  background: 'none', border: 'none', color: 'var(--text-muted)',
-                  fontSize: '0.7rem', cursor: 'pointer', padding: '0 2px',
-                }}
-              >
-                ✓
-              </button>
-            </div>
-          ) : (
-            qty > 1 ? (
-              <button
-                onClick={() => setStepperOpen(true)}
-                title="Edit quantity"
-                style={{
-                  background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.25)',
-                  borderRadius: 6, color: '#93c5fd', fontSize: '0.75rem', fontWeight: 700,
-                  cursor: 'pointer', padding: '2px 7px', flexShrink: 0,
-                }}
-              >
-                ×{qty}
-              </button>
-            ) : (
-              <button
-                onClick={() => setStepperOpen(true)}
-                title="Set quantity"
-                style={{
-                  background: 'none', border: '1px solid rgba(255,255,255,0.07)',
-                  borderRadius: 6, color: 'var(--text-muted)', fontSize: '0.7rem',
-                  cursor: 'pointer', padding: '2px 6px', flexShrink: 0,
-                  opacity: 0.25,
-                }}
-              >
-                ×1
-              </button>
-            )
-          )
-        )}
-        {isLocked && qty > 1 && (
-          <span style={{
-            background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.2)',
-            borderRadius: 6, color: '#93c5fd', fontSize: '0.75rem', fontWeight: 700,
-            padding: '2px 7px',
-          }}>
-            ×{qty}
-          </span>
-        )}
+      {/* ── Quantity pill (always visible per design spec) ── */}
+      {!isLocked && (
+        <div className="flex items-center bg-surface-container rounded-full border border-[#bfc9c1]/60 flex-shrink-0">
+          <button
+            onClick={decQty}
+            aria-label="Decrease quantity"
+            className="w-7 h-7 flex items-center justify-center text-outline hover:text-primary transition-colors rounded-full"
+            disabled={qty <= 1}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>remove</span>
+          </button>
+          <span className="w-6 text-center text-xs font-bold text-on-surface select-none">{qty}</span>
+          <button
+            onClick={() => onQuantityChange(item.id, qty + 1)}
+            aria-label="Increase quantity"
+            className="w-7 h-7 flex items-center justify-center text-outline hover:text-primary transition-colors rounded-full"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+          </button>
+        </div>
+      )}
 
-        {/* ── Right action zone ── */}
+      {/* Locked qty badge */}
+      {isLocked && qty > 1 && (
+        <span className="text-[11px] font-bold text-outline bg-surface-container rounded-full px-2 py-0.5 flex-shrink-0">
+          ×{qty}
+        </span>
+      )}
 
-        {/* Pinned + active → ⊘ Skip this trip */}
+      {/* ── Right action zone ── */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Pinned + active → skip this trip */}
         {item.persistent && !isLocked && !skipped && (
           <button
             onClick={() => onSkip(item.id)}
             title="Skip this trip"
-            style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 6, color: 'var(--text-muted)', fontSize: '0.7rem',
-              cursor: 'pointer', padding: '3px 7px', flexShrink: 0,
-            }}
+            className="hidden group-hover:flex items-center text-[10px] font-medium text-outline hover:text-on-surface border border-[#bfc9c1]/60 rounded-lg px-2 py-1 transition-colors cursor-pointer bg-transparent"
             aria-label="Skip item this trip"
           >
-            ⊘
+            Skip
           </button>
         )}
 
-        {/* Pinned + skipped → ↺ restore + 📌 Unpin */}
+        {/* Pinned + skipped → restore + unpin */}
         {item.persistent && !isLocked && skipped && (
           <>
             <button
               onClick={() => onSkip(item.id)}
-              title="Restore — include this item again"
-              style={{
-                background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)',
-                borderRadius: 6, color: '#34d399', fontSize: '0.75rem',
-                cursor: 'pointer', padding: '3px 7px', flexShrink: 0,
-              }}
+              title="Include this trip"
+              className="flex items-center text-[10px] font-semibold text-secondary border border-secondary/30 bg-secondary-container/30 rounded-lg px-2 py-1 transition-colors cursor-pointer"
               aria-label="Restore item"
             >
-              ↺
+              <span className="material-symbols-outlined mr-0.5" style={{ fontSize: '12px' }}>undo</span>
+              Restore
             </button>
             <button
               onClick={() => onTogglePersistent(item.id)}
-              title="Remove from staples permanently"
-              style={{
-                background: 'none', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 6, color: 'var(--text-muted)', fontSize: '0.7rem',
-                cursor: 'pointer', padding: '3px 6px', flexShrink: 0,
-              }}
+              title="Remove from staples"
+              className="hidden group-hover:flex items-center text-[10px] text-outline border border-[#bfc9c1]/60 rounded-lg px-1.5 py-1 transition-colors cursor-pointer bg-transparent"
               aria-label="Unpin item"
             >
-              📌 Unpin
+              Unpin
             </button>
           </>
         )}
 
-        {/* Not pinned + active → 📌 pin it */}
+        {/* Not pinned + active → pin it */}
         {!item.persistent && !isLocked && (
           <button
             onClick={() => onTogglePersistent(item.id)}
             title="Pin — keeps through Clear All"
-            style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 6, color: 'var(--text-muted)', fontSize: '0.72rem',
-              cursor: 'pointer', padding: '3px 6px', flexShrink: 0,
-            }}
+            className="hidden group-hover:flex items-center text-[10px] text-outline hover:text-primary border border-[#bfc9c1]/60 rounded-lg px-1.5 py-1 transition-colors cursor-pointer bg-transparent"
             aria-label="Pin item"
           >
-            📌
+            <span className="material-symbols-outlined mr-0.5" style={{ fontSize: '12px' }}>push_pin</span>
           </button>
         )}
 
         {/* Remove */}
         {!isLocked && (
           <button
-            className="btn btn-secondary btn-icon"
-            style={{ fontSize: '0.85rem', width: 28, height: 28, flexShrink: 0, opacity: 0.7 }}
             onClick={() => onRemove(item.id)}
             aria-label="Remove item"
+            className="hidden group-hover:flex w-7 h-7 items-center justify-center rounded-lg text-outline hover:text-error hover:bg-error-container/30 transition-colors cursor-pointer bg-transparent border-none"
           >
-            ✕
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
           </button>
         )}
       </div>
-    </div>
     </div>
   );
 }

@@ -87,31 +87,32 @@ export default function PreferencesPage() {
 
   if (loading) {
     return (
-      <div className="container" style={{ paddingTop: '2rem', textAlign: 'center' }}>
-        <p>Loading preferences...</p>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-16 text-center">
+        <p className="text-on-surface-variant">Loading preferences...</p>
       </div>
     );
   }
 
   return (
-    <div className="container" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-10 pb-10">
       {/* Header */}
-      <header style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h1 className="page-title">⚙️ Product Preferences</h1>
+      <header className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>Product Preferences</h1>
         </div>
-        <button className="btn btn-secondary" onClick={() => router.back()} style={{ marginBottom: '1rem' }}>
+        <button
+          className="px-4 py-2 bg-white text-primary border-2 border-primary/15 rounded-xl font-semibold text-sm hover:bg-primary/5 transition-colors cursor-pointer"
+          onClick={() => router.back()}
+        >
           ← Back
         </button>
       </header>
 
       {/* Message */}
       {message && (
-        <div className="glass-card" style={{ 
-          padding: 'var(--space-md)', 
-          marginBottom: 'var(--space-md)',
-          color: message.includes('Error') ? 'var(--accent-red)' : 'var(--accent-green)',
-          border: `1px solid ${message.includes('Error') ? 'var(--accent-red)' : 'var(--accent-green)'}`,
+        <div className="px-4 py-3 rounded-xl border mb-4 text-sm" style={{
+          color: message.includes('Error') ? '#ba1a1a' : '#0f5238',
+          border: `1px solid ${message.includes('Error') ? '#ba1a1a' : '#0f5238'}`,
         }}>
           {message}
         </div>
@@ -120,22 +121,22 @@ export default function PreferencesPage() {
       {/* Stats */}
       {preferences.length > 0 && (
         <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-          gap: 'var(--space-md)',
-          marginBottom: 'var(--space-lg)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          marginBottom: '24px',
         }}>
-          <div className="glass-card" style={{ padding: 'var(--space-md)' }}>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Mappings</div>
+          <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-4">
+            <div style={{ fontSize: '0.85rem', color: '#707973' }}>Total Mappings</div>
             <div style={{ fontSize: '2rem', fontWeight: 700 }}>{preferences.length}</div>
           </div>
-          <div className="glass-card" style={{ padding: 'var(--space-md)' }}>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Avg Price (KS)</div>
+          <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-4">
+            <div style={{ fontSize: '0.85rem', color: '#707973' }}>Avg Price (KS)</div>
             <div style={{ fontSize: '2rem', fontWeight: 700 }}>${avgPrice.toFixed(2)}</div>
           </div>
           {mostPurchased && (
-            <div className="glass-card" style={{ padding: 'var(--space-md)' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Most Purchased</div>
+            <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-4">
+              <div style={{ fontSize: '0.85rem', color: '#707973' }}>Most Purchased</div>
               <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{mostPurchased.display_name}</div>
             </div>
           )}
@@ -147,18 +148,18 @@ export default function PreferencesPage() {
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr auto', 
-          gap: 'var(--space-md)',
-          marginBottom: 'var(--space-md)',
+          gap: '16px',
+          marginBottom: '16px',
         }}>
           <input
             type="text"
-            className="ui-input"
+            className="px-4 py-2.5 text-sm border border-[#edeeef] bg-surface-container-low rounded-xl outline-none focus:border-primary/40 text-on-surface placeholder:text-outline"
             placeholder="Search mappings..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <select
-            className="ui-input"
+            className="px-4 py-2.5 text-sm border border-[#edeeef] bg-surface-container-low rounded-xl outline-none focus:border-primary/40 text-on-surface placeholder:text-outline"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'name' | 'price' | 'purchases')}
           >
@@ -171,47 +172,47 @@ export default function PreferencesPage() {
 
       {/* Table */}
       {sorted.length > 0 ? (
-        <div className="glass-card" style={{ overflow: 'auto' }}>
+        <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] overflow-auto">
           <table style={{ 
             width: '100%', 
             borderCollapse: 'collapse',
             fontSize: '0.95rem',
           }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <th style={{ textAlign: 'left', padding: 'var(--space-md)', fontWeight: 600 }}>Generic Name</th>
-                <th style={{ textAlign: 'left', padding: 'var(--space-md)', fontWeight: 600 }}>Display Name</th>
-                <th style={{ textAlign: 'left', padding: 'var(--space-md)', fontWeight: 600 }}>Brand</th>
-                <th style={{ textAlign: 'left', padding: 'var(--space-md)', fontWeight: 600 }}>Last Price (KS)</th>
-                <th style={{ textAlign: 'left', padding: 'var(--space-md)', fontWeight: 600 }}>Purchases</th>
-                <th style={{ textAlign: 'left', padding: 'var(--space-md)', fontWeight: 600 }}>Store</th>
-                <th style={{ textAlign: 'center', padding: 'var(--space-md)', fontWeight: 600 }}>Actions</th>
+              <tr className="border-b border-[#edeeef]">
+                <th style={{ textAlign: 'left', padding: '16px', fontWeight: 600 }}>Generic Name</th>
+                <th style={{ textAlign: 'left', padding: '16px', fontWeight: 600 }}>Display Name</th>
+                <th style={{ textAlign: 'left', padding: '16px', fontWeight: 600 }}>Brand</th>
+                <th style={{ textAlign: 'left', padding: '16px', fontWeight: 600 }}>Last Price (KS)</th>
+                <th style={{ textAlign: 'left', padding: '16px', fontWeight: 600 }}>Purchases</th>
+                <th style={{ textAlign: 'left', padding: '16px', fontWeight: 600 }}>Store</th>
+                <th style={{ textAlign: 'center', padding: '16px', fontWeight: 600 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((pref) => (
-                <tr key={pref.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                  <td style={{ padding: 'var(--space-md)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                <tr key={pref.id} className="border-b border-[#edeeef]">
+                  <td style={{ padding: '16px', color: '#707973', fontSize: '0.9rem' }}>
                     {pref.generic_name}
                   </td>
-                  <td style={{ padding: 'var(--space-md)', fontWeight: 500 }}>
+                  <td style={{ padding: '16px', fontWeight: 500 }}>
                     {pref.display_name}
                   </td>
-                  <td style={{ padding: 'var(--space-md)', color: 'var(--text-secondary)' }}>
+                  <td style={{ padding: '16px', color: '#404943' }}>
                     {pref.preferred_brand || '—'}
                   </td>
-                  <td style={{ padding: 'var(--space-md)' }}>
+                  <td style={{ padding: '16px' }}>
                     {pref.last_kroger_price ? `$${pref.last_kroger_price.toFixed(2)}` : '—'}
                   </td>
-                  <td style={{ padding: 'var(--space-md)' }}>
+                  <td style={{ padding: '16px' }}>
                     {pref.times_purchased}
                   </td>
-                  <td style={{ padding: 'var(--space-md)', color: 'var(--text-secondary)' }}>
+                  <td style={{ padding: '16px', color: '#404943' }}>
                     {pref.preferred_store || '—'}
                   </td>
-                  <td style={{ padding: 'var(--space-md)', textAlign: 'center' }}>
+                  <td style={{ padding: '16px', textAlign: 'center' }}>
                     <button
-                      className="btn btn-secondary"
+                      className="px-3 py-1.5 text-xs font-semibold bg-white text-error border-2 border-error/15 rounded-lg hover:bg-error/5 cursor-pointer"
                       onClick={() => handleDelete(pref.id)}
                       style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
                     >
@@ -224,15 +225,12 @@ export default function PreferencesPage() {
           </table>
         </div>
       ) : (
-        <div className="glass-card" style={{ 
-          padding: '3rem 2rem',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '3rem', marginBottom: 'var(--space-md)', opacity: 0.5 }}>
+        <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] py-12 px-8 text-center">
+          <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}>
             📦
           </div>
-          <h3 style={{ fontSize: '1.2rem', marginBottom: 'var(--space-sm)' }}>No learned preferences yet</h3>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-md)' }}>
+          <h3 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>No learned preferences yet</h3>
+          <p style={{ color: '#404943', marginBottom: '16px' }}>
             Preferences are saved automatically when you check “💾 Remember” on a search result and add it to your cart.
           </p>
         </div>

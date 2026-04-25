@@ -362,46 +362,31 @@ export default function SearchPage() {
           : 'kroger';
 
     return (
-      <div className="container" style={{ paddingBottom: '40px' }}>
-        <header style={{ paddingTop: '2rem', marginBottom: 'var(--space-xl)' }}>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 pb-10">
+        <header className="pt-8 mb-8">
           <button
             onClick={() => router.push('/')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              padding: '0.5rem 0',
-              marginBottom: 'var(--space-md)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
+            className="flex items-center gap-2 text-on-surface-variant text-sm mb-4 bg-transparent border-none cursor-pointer hover:text-on-surface transition-colors p-0"
           >
-            ← Back to Inbox
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+            Back to Inbox
           </button>
-          <h1 className="page-title">
-            🔍 Searching {batchItems.length} item{batchItems.length !== 1 ? 's' : ''}
+          <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>
+            Searching {batchItems.length} item{batchItems.length !== 1 ? 's' : ''}
           </h1>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '0.9rem', textTransform: 'capitalize' }}>
+          <p className="text-on-surface-variant mt-1 text-sm capitalize">
             {batchStores.join(' · ')}
           </p>
         </header>
 
         {allDone && (
-          <div
-            className="glass-card"
-            style={{
-              padding: 'var(--space-lg)',
-              marginBottom: 'var(--space-lg)',
-              textAlign: 'center',
-              border: '1px solid rgba(34, 197, 94, 0.35)',
-            }}
-          >
-            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🎉</div>
-            <p style={{ fontWeight: 600, color: '#22c55e', marginBottom: '12px' }}>All items added to cart!</p>
-            <button className="btn btn-primary" onClick={() => router.push('/')}>
+          <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-6 mb-6 text-center">
+            <span className="material-symbols-outlined text-primary" style={{ fontSize: '2.5rem', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            <p className="font-semibold text-primary mt-2 mb-3">All items added to cart!</p>
+            <button
+              className="px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm border-none cursor-pointer hover:bg-[#0d4430] transition-colors"
+              onClick={() => router.push('/')}
+            >
               ← Return to Inbox
             </button>
           </div>
@@ -420,34 +405,18 @@ export default function SearchPage() {
           activeStore={batchStoreView}
         />
 
-        {/* Sticky Add to Cart bar */}
+        {/* Sticky Add to Cart bar (batch mode) */}
         {selectedIds.size > 0 && (
-          <div
-            style={{
-              position: 'fixed',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              background: 'rgba(10, 10, 20, 0.95)',
-              backdropFilter: 'blur(12px)',
-              borderTop: '1px solid rgba(255,255,255,0.1)',
-              padding: '14px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '16px',
-              zIndex: 50,
-            }}
-          >
-            <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#edeeef] shadow-2xl px-5 py-3.5 flex items-center justify-between gap-4 z-50">
+            <span className="text-sm text-on-surface-variant">
               {selectedIds.size} product{selectedIds.size !== 1 ? 's' : ''} selected
             </span>
             <button
-              className="btn btn-primary"
+              className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-sm border-none cursor-pointer hover:bg-[#0d4430] active:scale-95 transition-all flex items-center gap-2"
               onClick={handleAddSelectedBatch}
-              style={{ padding: '10px 24px', fontWeight: 700 }}
             >
-              🛒 Add {selectedIds.size} to Cart
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
+              Add {selectedIds.size} to Cart
             </button>
           </div>
         )}
@@ -459,99 +428,73 @@ export default function SearchPage() {
   const isLoading = activeStore === 'kroger' ? loadingKroger : loadingAmazon;
 
   return (
-    <div className="container" style={{ paddingBottom: '120px' }}>
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pb-32">
       {/* Header */}
-      <header style={{ paddingTop: '2rem', marginBottom: 'var(--space-xl)' }}>
+      <header className="pt-8 mb-8">
         <button
           onClick={() => router.push('/')}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: '1rem',
-            padding: '0.5rem 0',
-            marginBottom: 'var(--space-md)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}
+          className="flex items-center gap-2 text-on-surface-variant text-sm mb-4 bg-transparent border-none cursor-pointer hover:text-on-surface transition-colors p-0"
         >
-          ← Back to Inbox
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          Back to Inbox
         </button>
-        <h1 className="page-title">
-          {itemId ? '🔍 Find a product' : '🔍 Search Products'}
+        <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>
+          {itemId ? 'Find a product' : 'Search Products'}
         </h1>
         {initialQuery && (
-          <p style={{ color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Searching for: <strong style={{ color: 'var(--text-primary)' }}>{initialQuery}</strong>
+          <p className="text-on-surface-variant mt-1">
+            Searching for: <strong className="text-on-surface">{initialQuery}</strong>
           </p>
         )}
       </header>
 
       {/* Search Bar */}
-      <div style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+      <div className="flex gap-3 mb-6">
         <input
           type="text"
           placeholder="Search for products..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-          className="ui-input"
-          style={{ flex: 1, fontSize: '1rem', padding: 'var(--space-md)' }}
+          className="flex-1 px-4 py-3 text-base border border-[#edeeef] bg-surface-container-low rounded-xl outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 text-on-surface placeholder:text-outline transition-all"
           autoFocus={!initialQuery}
         />
         <button
-          className="btn btn-primary btn-lg"
+          className="px-5 py-3 bg-primary text-on-primary rounded-xl font-semibold text-sm border-none cursor-pointer hover:bg-[#0d4430] disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all min-w-[100px]"
           onClick={handleSearch}
           disabled={isLoading || !query.trim()}
-          style={{ minWidth: 110 }}
         >
           {isLoading ? 'Searching...' : 'Search'}
         </button>
       </div>
 
       {/* Store Tabs */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: 'var(--space-xl)', borderBottom: '1px solid var(--border-subtle)' }}>
+      <div className="flex gap-0 mb-8 border-b border-[#edeeef]">
         <button
           onClick={() => handleTabChange('kroger')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            color: activeStore === 'kroger' ? '#b8d962' : 'var(--text-muted)',
-            borderBottom: activeStore === 'kroger' ? '2px solid #b8d962' : '2px solid transparent',
-            marginBottom: '-1px',
-            transition: 'all 0.15s',
-          }}
+          className={`px-5 py-2.5 border-none cursor-pointer font-semibold text-sm transition-all bg-transparent ${
+            activeStore === 'kroger'
+              ? 'text-kroger border-b-2 border-kroger -mb-px'
+              : 'text-outline'
+          }`}
         >
-          🟢 King Soopers
+          King Soopers
           {krogerResults.length > 0 && (
-            <span style={{ marginLeft: 6, fontSize: '0.75rem', opacity: 0.7 }}>({krogerResults.length})</span>
+            <span className="ml-1.5 text-[11px] opacity-60">({krogerResults.length})</span>
           )}
         </button>
         <button
           onClick={() => handleTabChange('amazon')}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            color: activeStore === 'amazon' ? '#ff9900' : 'var(--text-muted)',
-            borderBottom: activeStore === 'amazon' ? '2px solid #ff9900' : '2px solid transparent',
-            marginBottom: '-1px',
-            transition: 'all 0.15s',
-          }}
+          className={`px-5 py-2.5 border-none cursor-pointer font-semibold text-sm transition-all bg-transparent ${
+            activeStore === 'amazon'
+              ? 'text-amazon border-b-2 border-amazon -mb-px'
+              : 'text-outline'
+          }`}
         >
-          🟠 Amazon{' '}
-          <span style={{ fontWeight: 400, fontSize: '0.78rem', opacity: 0.7 }}>(on demand)</span>
+          Amazon
+          <span className="font-normal text-[11px] opacity-60"> (on demand)</span>
           {amazonResults.length > 0 && (
-            <span style={{ marginLeft: 6, fontSize: '0.75rem', opacity: 0.7 }}>({amazonResults.length})</span>
+            <span className="ml-1.5 text-[11px] opacity-60">({amazonResults.length})</span>
           )}
         </button>
       </div>
@@ -570,35 +513,19 @@ export default function SearchPage() {
 
       {/* Sticky Add to Cart bar */}
       {selectedIds.size > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            background: 'rgba(10, 10, 20, 0.95)',
-            backdropFilter: 'blur(12px)',
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-            zIndex: 50,
-          }}
-        >
-          <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#edeeef] shadow-2xl px-5 py-3.5 flex items-center justify-between gap-4 z-50">
+          <span className="text-sm text-on-surface-variant">
             {selectedIds.size} product{selectedIds.size !== 1 ? 's' : ''} selected
             {rememberedKey && (
-              <span style={{ marginLeft: 8, color: '#84cc16', fontSize: '0.82rem' }}>· 1 remembered</span>
+              <span className="ml-2 text-primary text-xs">· 1 remembered</span>
             )}
           </span>
           <button
-            className="btn btn-primary"
+            className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-sm border-none cursor-pointer hover:bg-[#0d4430] active:scale-95 transition-all flex items-center gap-2"
             onClick={handleAddSelectedToCart}
-            style={{ padding: '10px 24px', fontWeight: 700 }}
           >
-            🛒 Add {selectedIds.size} to Cart
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
+            Add {selectedIds.size} to Cart
           </button>
         </div>
       )}

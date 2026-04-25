@@ -158,45 +158,43 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="container" style={{ textAlign: 'center', paddingTop: 'var(--space-2xl)' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Loading Settings...</h1>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-16 text-center">
+        <p className="text-on-surface-variant text-lg">Loading Settings...</p>
       </div>
     );
   }
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-2xl)' }}>
-      <header className="page-header" style={{ marginBottom: 'var(--space-xl)', paddingTop: '2.5rem' }}>
-        <h1 className="page-title">⚙️ Settings</h1>
-        <button className="btn btn-secondary" onClick={() => router.push('/')}>← Back</button>
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-10 pb-16">
+      <header className="flex items-start justify-between mb-8">
+        <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
+        <button
+          className="px-4 py-2 bg-white text-primary border-2 border-primary/15 rounded-xl font-semibold text-sm hover:bg-primary/5 transition-colors cursor-pointer"
+          onClick={() => router.push('/')}
+        >← Back</button>
       </header>
 
       {/* Status toast */}
       {statusMessage && (
-        <div style={{
-          marginBottom: 'var(--space-lg)',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          background: statusMessage.type === 'success' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-          border: `1px solid ${statusMessage.type === 'success' ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
-          color: statusMessage.type === 'success' ? '#4ade80' : '#f87171',
-          fontSize: '0.9rem',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
+        <div className={`mb-6 px-4 py-3 rounded-xl text-sm flex justify-between items-center border ${
+          statusMessage.type === 'success'
+            ? 'bg-primary/5 border-primary/20 text-primary'
+            : 'bg-error-container border-error/20 text-error'
+        }`}>
           {statusMessage.text}
           <button
             onClick={() => setStatusMessage(null)}
-            style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1rem' }}
+            className="bg-transparent border-none text-inherit cursor-pointer text-base ml-4"
           >✕</button>
         </div>
       )}
 
       {/* ── King Soopers Account ─────────────────────────────── */}
-      <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-md)' }}>
+      <section className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-6 mb-6">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '4px' }}>🛒 King Soopers Account</h2>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <p style={{ fontSize: '0.85rem', color: '#707973' }}>
               Link your account to push items directly to your King Soopers cart.
             </p>
           </div>
@@ -208,7 +206,7 @@ export default function SettingsPage() {
             fontWeight: 600,
             background: krogerStatus?.linked ? 'rgba(74, 222, 128, 0.12)' : 'rgba(148, 163, 184, 0.1)',
             border: `1px solid ${krogerStatus?.linked ? 'rgba(74, 222, 128, 0.35)' : 'rgba(148, 163, 184, 0.2)'}`,
-            color: krogerStatus?.linked ? '#4ade80' : 'var(--text-muted)',
+            color: krogerStatus?.linked ? '#4ade80' : '#707973',
             flexShrink: 0,
           }}>
             {krogerStatus?.linked ? '● Linked' : '○ Not Linked'}
@@ -217,18 +215,18 @@ export default function SettingsPage() {
 
         {krogerStatus?.linked ? (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: '0.8rem', color: '#707973' }}>
               Last authorized: {krogerStatus.linked_at
                 ? new Date(krogerStatus.linked_at).toLocaleDateString()
                 : 'unknown'}
             </span>
             <a href="/api/kroger/auth/authorize">
-              <button className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '5px 14px' }}>
+              <button className="px-4 py-2 bg-white text-primary border-2 border-primary/15 rounded-xl font-semibold text-sm hover:bg-primary/5 cursor-pointer" style={{ fontSize: '0.82rem', padding: '5px 14px' }}>
                 🔄 Re-authorize
               </button>
             </a>
             <button
-              className="btn btn-secondary"
+              className="px-4 py-2 bg-white text-primary border-2 border-primary/15 rounded-xl font-semibold text-sm hover:bg-primary/5 cursor-pointer"
               style={{ fontSize: '0.82rem', padding: '5px 14px', color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}
               onClick={handleUnlink}
               disabled={unlinking}
@@ -238,7 +236,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <a href="/api/kroger/auth/authorize">
-            <button className="btn btn-primary" style={{ marginTop: 'var(--space-sm)' }}>
+            <button className="px-4 py-2 bg-primary text-on-primary rounded-xl font-semibold text-sm border-none cursor-pointer hover:bg-[#0d4430] transition-colors" style={{ marginTop: '8px' }}>
               🔗 Link King Soopers Account
             </button>
           </a>
@@ -246,37 +244,37 @@ export default function SettingsPage() {
       </section>
 
       {/* ── Store Location ───────────────────────────────────── */}
-      <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
+      <section className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-6 mb-6">
         <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '4px' }}>📍 Store Location</h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
+        <p style={{ fontSize: '0.85rem', color: '#707973', marginBottom: '24px' }}>
           Set your preferred King Soopers location for inventory checks and pricing.
         </p>
 
         {/* Current store display (read-only) */}
-        <div style={{ marginBottom: 'var(--space-lg)', padding: '12px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ marginBottom: '24px', padding: '12px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
           {settings?.kroger_store_name ? (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>📍 {settings.kroger_store_name}</span>
                 <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 600 }}>✓ Selected</span>
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'monospace' }}>
+              <div style={{ fontSize: '0.75rem', color: '#707973', marginTop: '3px', fontFamily: 'monospace' }}>
                 ID: {settings.kroger_location_id}
               </div>
             </>
           ) : (
-            <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>No store selected — search below to pick one.</span>
+            <span style={{ fontSize: '0.88rem', color: '#707973' }}>No store selected — search below to pick one.</span>
           )}
-          {savingLocation && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '8px' }}>Saving…</span>}
+          {savingLocation && <span style={{ fontSize: '0.78rem', color: '#707973', marginLeft: '8px' }}>Saving…</span>}
         </div>
 
         {/* Location search */}
         <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>Search by zip code:</p>
+          <p style={{ fontSize: '0.85rem', color: '#404943', marginBottom: '10px' }}>Search by zip code:</p>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
             <input
               type="text"
-              className="ui-input"
+              className="px-3 py-2 text-sm border border-[#edeeef] bg-surface-container-low rounded-xl outline-none text-on-surface placeholder:text-outline"
               placeholder="Zip code (e.g. 80516)"
               value={locationSearchZip}
               onChange={(e) => setLocationSearchZip(e.target.value)}
@@ -284,7 +282,7 @@ export default function SettingsPage() {
               style={{ maxWidth: '220px' }}
             />
             <button
-              className="btn btn-secondary"
+              className="px-4 py-2 bg-white text-primary border-2 border-primary/15 rounded-xl font-semibold text-sm hover:bg-primary/5 cursor-pointer"
               onClick={handleLocationSearch}
               disabled={locationSearching}
               style={{ flexShrink: 0 }}
@@ -298,33 +296,22 @@ export default function SettingsPage() {
           )}
 
           {locationResults.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '260px', overflowY: 'auto' }}>
+            <div className="flex flex-col gap-1.5 max-h-[260px] overflow-y-auto">
               {locationResults.map((loc) => (
                 <button
                   key={loc.locationId}
                   onClick={() => handleSelectLocation(loc)}
                   disabled={savingLocation}
-                  style={{
-                    textAlign: 'left',
-                    background: settings?.kroger_location_id === loc.locationId
-                      ? 'rgba(132, 204, 22, 0.08)'
-                      : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${settings?.kroger_location_id === loc.locationId
-                      ? 'rgba(132, 204, 22, 0.35)'
-                      : 'rgba(255,255,255,0.07)'}`,
-                    borderRadius: '6px',
-                    padding: '10px 12px',
-                    cursor: savingLocation ? 'default' : 'pointer',
-                    color: 'var(--text-primary)',
-                    transition: 'background 0.15s',
-                  }}
+                  className={`text-left rounded-xl px-3 py-2.5 cursor-pointer border transition-colors ${
+                    settings?.kroger_location_id === loc.locationId
+                      ? 'bg-primary/5 border-primary/20'
+                      : 'bg-white border-[#edeeef] hover:bg-surface-container-low'
+                  } disabled:cursor-default`}
                 >
-                  <div style={{ fontWeight: 500, fontSize: '0.88rem' }}>{loc.name}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  <div className="font-medium text-sm text-on-surface">{loc.name}</div>
+                  <div className="text-xs text-outline mt-0.5">
                     {loc.address}, {loc.city}, {loc.state} {loc.zipCode}
-                    <span style={{ marginLeft: '8px', color: '#94a3b8', fontFamily: 'monospace' }}>
-                      #{loc.locationId}
-                    </span>
+                    <span className="ml-2 font-mono text-outline">#{loc.locationId}</span>
                   </div>
                 </button>
               ))}
@@ -335,13 +322,13 @@ export default function SettingsPage() {
       </section>
 
       {/* ── Preferences ──────────────────────────────────────── */}
-      <section className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
+      <section className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-6 mb-6">
         <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>⚙️ Preferences</h2>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
+        <p style={{ fontSize: '0.85rem', color: '#707973', marginBottom: '24px' }}>
           When enabled, items are automatically removed from your list as soon as they are added to the shopping cart.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
           <input
             type="checkbox"
             id="auto_remove_on_cart"
@@ -359,12 +346,12 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Retained Items <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(never auto-removed)</span>
+          <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#404943' }}>
+            Retained Items <span style={{ fontWeight: 400, color: '#707973' }}>(never auto-removed)</span>
           </label>
           <input
             type="text"
-            className="ui-input"
+            className="px-3 py-2 text-sm border border-[#edeeef] bg-surface-container-low rounded-xl outline-none text-on-surface placeholder:text-outline"
             value={settings?.retained_items || ''}
             onChange={(e) =>
               setSettings((prev) => (prev ? { ...prev, retained_items: e.target.value } : null))
@@ -372,14 +359,14 @@ export default function SettingsPage() {
             placeholder="e.g. olive oil, coffee, oats"
             style={{ width: '100%' }}
           />
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <p style={{ fontSize: '0.75rem', color: '#707973', marginTop: '4px' }}>
             Comma-separated list of items that always stay on your grocery list.
           </p>
         </div>
 
         <button
-          className="btn btn-primary btn-lg"
-          style={{ marginTop: 'var(--space-xl)' }}
+          className="px-6 py-3 bg-primary text-on-primary rounded-xl font-bold text-sm border-none cursor-pointer hover:bg-[#0d4430] transition-all"
+          style={{ marginTop: '32px' }}
           onClick={handleSave}
           disabled={saving}
         >

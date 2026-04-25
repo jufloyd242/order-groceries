@@ -41,35 +41,24 @@ export function ProductCard({
 
   return (
     <div
-      style={{
-        padding: 'var(--space-md)',
-        background: isAdded
-          ? 'rgba(34, 197, 94, 0.08)'
+      className={`p-4 rounded-xl border flex gap-3 items-center transition-all ${
+        isAdded
+          ? 'bg-primary/5 border-primary/25'
           : isSelected
-            ? 'rgba(132, 204, 22, 0.06)'
-            : 'rgba(255, 255, 255, 0.05)',
-        border: isAdded
-          ? '1px solid rgba(34, 197, 94, 0.3)'
-          : isSelected
-            ? '1px solid rgba(132, 204, 22, 0.35)'
-            : '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '8px',
-        display: 'flex',
-        gap: 'var(--space-md)',
-        alignItems: 'center',
-        transition: 'all 0.2s ease',
-      }}
+            ? 'bg-primary/[0.04] border-primary/15'
+            : 'bg-white border-[#edeeef]'
+      }`}
     >
       {/* Select checkbox */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+      <div className="flex-shrink-0 flex items-center">
         {isAdded ? (
-          <span style={{ fontSize: '1.1rem' }}>✓</span>
+          <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
         ) : (
           <input
             type="checkbox"
             checked={isSelected}
             onChange={onToggleSelect}
-            style={{ width: 18, height: 18, accentColor: '#84cc16', cursor: 'pointer' }}
+            className="w-[18px] h-[18px] cursor-pointer accent-primary"
             aria-label={`Select ${product.name}`}
           />
         )}
@@ -78,15 +67,7 @@ export function ProductCard({
       {/* Image */}
       {product.image_url && (
         <div
-          style={{
-            position: 'relative',
-            width: 64,
-            height: 64,
-            borderRadius: '6px',
-            overflow: 'hidden',
-            flexShrink: 0,
-            background: '#1e293b',
-          }}
+          className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-low border border-[#edeeef]"
         >
           <Image
             src={product.image_url}
@@ -98,95 +79,63 @@ export function ProductCard({
         </div>
       )}
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc', lineHeight: 1.3 }}>
-            {product.name}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-on-surface leading-snug">
+          {product.name}
+        </div>
+        {product.brand && (
+          <div className="text-xs text-on-surface-variant mt-0.5">
+            {product.brand}
           </div>
-          {product.brand && (
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              {product.brand}
-            </div>
-          )}
-          {product.size && (
-            <span style={{
-              display: 'inline-block', marginTop: '3px',
-              fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em',
-              color: '#94a3b8', background: 'rgba(148,163,184,0.12)',
-              border: '1px solid rgba(148,163,184,0.22)', borderRadius: '4px',
-              padding: '1px 6px', textTransform: 'uppercase',
-            }}>
-              {product.size}
+        )}
+        {product.size && (
+          <span className="inline-block mt-0.5 text-[11px] font-bold tracking-wide text-outline bg-surface-container border border-[#bfc9c1]/60 rounded px-1.5 py-0.5 uppercase">
+            {product.size}
+          </span>
+        )}
+        <div className="text-base font-bold mt-1 flex items-center gap-2 flex-wrap">
+          <span className={displayPrice > 0 ? 'text-primary' : 'text-outline'}>
+            {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
+          </span>
+          {promoPrice && promoPrice > 0 && price > promoPrice && (
+            <span className="text-xs text-outline line-through">
+              ${price.toFixed(2)}
             </span>
           )}
-          <div
-            style={{
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: displayPrice > 0 ? 'var(--accent-green)' : 'var(--text-muted)',
-              marginTop: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-            }}
-          >
-            {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
-            {promoPrice && promoPrice > 0 && price > promoPrice && (
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
-                ${price.toFixed(2)}
-              </span>
-            )}
-            {isStockUpPrice && (
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  color: '#052e16',
-                  background: '#4ade80',
-                  borderRadius: '4px',
-                  padding: '2px 6px',
-                  letterSpacing: '0.01em',
-                }}
-                title={`${Math.round((1 - displayPrice / historicalAvg!) * 100)}% below your avg of $${historicalAvg!.toFixed(2)}`}
-              >
-                🔥 Stock Up Price!
-              </span>
-            )}
-          </div>
-          {displayPrice > 0 && product.price_per_unit > 0 && product.unit && (
-            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>
-              ${product.price_per_unit.toFixed(2)}&nbsp;/&nbsp;{product.unit}
-            </div>
+          {isStockUpPrice && (
+            <span
+              className="text-[11px] font-bold text-[#052e16] bg-[#4ade80] rounded px-1.5 py-0.5 tracking-tight"
+              title={`${Math.round((1 - displayPrice / historicalAvg!) * 100)}% below your avg of $${historicalAvg!.toFixed(2)}`}
+            >
+              Stock Up!
+            </span>
           )}
         </div>
+        {displayPrice > 0 && product.price_per_unit > 0 && product.unit && (
+          <div className="text-[11px] font-semibold text-on-surface-variant mt-0.5">
+            ${product.price_per_unit.toFixed(2)}&nbsp;/&nbsp;{product.unit}
+          </div>
+        )}
+      </div>
 
-      {/* Remember radio (only shown when in a search context with an itemId/listItemId) */}
+      {/* Remember radio */}
       {onSelectRemember && (
         <label
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            cursor: 'pointer',
-            fontSize: '0.72rem',
-            color: isRemembered ? '#84cc16' : '#64748b',
-            padding: '4px 8px',
-            border: `1px solid ${isRemembered ? '#84cc16' : 'rgba(255,255,255,0.1)'}`,
-            borderRadius: '6px',
-            background: isRemembered ? 'rgba(132, 204, 22, 0.1)' : 'none',
-            transition: 'all 0.15s',
-            whiteSpace: 'nowrap',
-          }}
+          className={`flex-shrink-0 flex items-center gap-1 cursor-pointer text-[11px] px-2 py-1 border rounded-lg transition-all whitespace-nowrap ${
+            isRemembered
+              ? 'text-primary border-primary/30 bg-primary/8'
+              : 'text-on-surface-variant border-[#edeeef] bg-transparent'
+          }`}
         >
           <input
             type="radio"
             name={radioGroupName}
             checked={!!isRemembered}
             onChange={onSelectRemember}
-            style={{ accentColor: '#84cc16', width: 13, height: 13 }}
+            className="w-3 h-3 accent-primary"
           />
-          💾 Remember
+          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>bookmark</span>
+          Remember
         </label>
       )}
     </div>

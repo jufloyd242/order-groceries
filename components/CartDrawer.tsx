@@ -32,10 +32,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
     try {
       const result = await submitCart(krogerItems);
       const authNeeded = result.results.find((r) => r.authUrl);
-      if (authNeeded?.authUrl) {
-        window.location.href = authNeeded.authUrl;
-        return;
-      }
+      if (authNeeded?.authUrl) { window.location.href = authNeeded.authUrl; return; }
       if (result.submittedIds.length > 0) {
         const submittedSet = new Set(result.submittedIds);
         const submittedListItemIds = krogerItems
@@ -43,37 +40,25 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
           .map((i) => i.listItemId!);
         removeItems(result.submittedIds);
         if (submittedListItemIds.length > 0) {
-          try {
-            await fetch('/api/list/cleanup-on-cart', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ listItemIds: submittedListItemIds }),
-            });
-          } catch (err) {
-            console.error('Cleanup error:', err);
-          }
-          // Notify home page that items became 'purchased' (after DB update)
+          await fetch('/api/list/cleanup-on-cart', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listItemIds: submittedListItemIds }),
+          }).catch(console.error);
           window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
-        // Revert list items for any cart items that FAILED submission
         const failedListItemIds = krogerItems
           .filter((i) => !submittedSet.has(i.id) && i.listItemId)
           .map((i) => i.listItemId!);
         if (failedListItemIds.length > 0) {
           fetch('/api/list/revert-cart', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ listItemIds: failedListItemIds }),
-          }).catch((err) => console.error('Revert error:', err));
+          }).catch(console.error);
           window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
       }
       const r = result.results.find((r) => r.store === 'kroger');
-      if (r) {
-        setMessages([r.success
-          ? `✅ King Soopers: ${r.itemsAdded} item(s) added to cart`
-          : `❌ King Soopers: ${r.errors.join(', ')}`]);
-      }
+      if (r) setMessages([r.success ? `✅ King Soopers: ${r.itemsAdded} item(s) added` : `❌ King Soopers: ${r.errors.join(', ')}`]);
     } catch {
       setMessages(['Failed to submit to King Soopers. Please try again.']);
     } finally {
@@ -94,22 +79,15 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
           .map((i) => i.listItemId!);
         removeItems(result.submittedIds);
         if (listItemIds.length > 0) {
-          try {
-            await fetch('/api/list/cleanup-on-cart', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ listItemIds }),
-            });
-          } catch (err) {
-            console.error('Cleanup error:', err);
-          }
+          await fetch('/api/list/cleanup-on-cart', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ listItemIds }),
+          }).catch(console.error);
           window.dispatchEvent(new CustomEvent('list-status-changed'));
         }
       }
       const r = result.results.find((r) => r.store === 'amazon');
-      setMessages([r?.success
-        ? `✅ Amazon: ${r.itemsAdded} item(s) added to cart`
-        : '❌ Amazon cart integration coming soon.']);
+      setMessages([r?.success ? `✅ Amazon: ${r.itemsAdded} item(s) added` : '❌ Amazon cart integration coming soon.']);
     } catch {
       setMessages(['Failed to submit to Amazon. Please try again.']);
     } finally {
@@ -122,72 +100,63 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)',
-          zIndex: 998,
-        }}
+        className="fixed inset-0 bg-on-surface/30 backdrop-blur-sm z-[998]"
       />
 
       {/* Drawer */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: '420px', maxWidth: '100vw',
-        backgroundColor: '#0f172a', borderLeft: '1px solid rgba(255,255,255,0.08)',
-        zIndex: 999, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',
-      }}>
+      <div className="fixed top-0 right-0 bottom-0 w-[420px] max-w-full bg-white border-l border-[#edeeef] z-[999] flex flex-col overflow-hidden shadow-2xl">
         {/* Header */}
-        <div style={{
-          padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
-            🛒 Cart {items.length > 0 && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>({items.length})</span>}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#edeeef] bg-surface-container-low/50">
+          <h2 className="text-base font-bold text-on-surface flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
+            <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px', fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
+            Cart
+            {items.length > 0 && (
+              <span className="text-sm font-normal text-outline">({items.length})</span>
+            )}
           </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="flex items-center gap-2">
             {items.length > 0 && (
               <button
                 onClick={() => { onClose(); router.push('/compare'); }}
-                style={{ background: 'none', color: '#94a3b8', fontSize: '0.82rem', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
+                className="flex items-center gap-1 text-xs font-semibold text-primary border border-primary/20 rounded-lg px-3 py-1.5 hover:bg-primary/5 transition-colors cursor-pointer bg-transparent"
               >
-                📊 Compare
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>bar_chart</span>
+                Compare
               </button>
             )}
-            <button onClick={onClose} style={{
-              background: 'none', border: 'none', color: '#94a3b8',
-              fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1, padding: '4px',
-            }}>✕</button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer bg-transparent border-none"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
           </div>
         </div>
 
-        {/* Scrollable item list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        {/* Item list */}
+        <div className="flex-1 overflow-y-auto p-4">
           {items.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🛒</div>
-              <p style={{ margin: 0, fontSize: '0.95rem' }}>Your cart is empty</p>
-              <p style={{ margin: '8px 0 0', fontSize: '0.8rem' }}>
-                Add items from the Search or Compare pages
-              </p>
+            <div className="text-center py-16 px-6">
+              <span className="material-symbols-outlined text-5xl text-outline/40 block mb-3" style={{ fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
+              <p className="text-sm font-medium text-on-surface-variant">Your cart is empty</p>
+              <p className="text-xs text-outline mt-1">Add items from Search or Compare pages</p>
             </div>
           ) : (
             <>
-              {/* King Soopers items */}
               {byStore.kroger.length > 0 && (
                 <StoreSection
                   label="King Soopers"
-                  color="#4ade80"
+                  headerClass="bg-primary/5 border-primary/20 text-primary"
                   items={byStore.kroger}
                   total={totals.kroger}
                   onRemove={removeItem}
                   onUpdateQty={updateQuantity}
                 />
               )}
-
-              {/* Amazon items */}
               {byStore.amazon.length > 0 && (
                 <StoreSection
                   label="Amazon"
-                  color="#ff9900"
+                  headerClass="bg-amazon/5 border-amazon/20 text-amazon"
                   items={byStore.amazon}
                   total={totals.amazon}
                   onRemove={removeItem}
@@ -197,15 +166,10 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
             </>
           )}
 
-        {/* Result messages */}
           {messages.length > 0 && (
-            <div style={{
-              marginTop: '16px', padding: '14px', borderRadius: '8px',
-              backgroundColor: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}>
+            <div className="mt-4 p-4 rounded-xl bg-surface-container border border-[#edeeef]">
               {messages.map((msg, i) => (
-                <p key={i} style={{ margin: i === 0 ? 0 : '8px 0 0', fontSize: '0.88rem', color: '#cbd5e1' }}>
+                <p key={i} className={`text-sm ${i > 0 ? 'mt-2' : ''} ${msg.startsWith('✅') ? 'text-primary' : 'text-error'}`}>
                   {msg}
                 </p>
               ))}
@@ -215,41 +179,37 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
 
         {/* Footer */}
         {items.length > 0 && (
-          <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              marginBottom: '14px',
-            }}>
-              <span style={{ fontSize: '0.95rem', color: '#94a3b8' }}>Estimated total</span>
-              <span style={{ fontSize: '1.3rem', fontWeight: 700 }}>${totals.total.toFixed(2)}</span>
+          <div className="p-4 border-t border-[#edeeef] bg-surface-container-low/50">
+            {/* Total */}
+            <div className="flex items-center justify-between mb-4 px-1">
+              <span className="text-sm text-on-surface-variant">Estimated total</span>
+              <span className="text-xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>
+                ${totals.total.toFixed(2)}
+              </span>
             </div>
+
             {byStore.kroger.length > 0 && (
               <button
-                className="btn btn-primary btn-lg"
                 onClick={handleKrogerSubmit}
                 disabled={submitting !== null}
-                style={{ width: '100%', padding: '14px', fontSize: '1rem', marginBottom: '8px', background: '#4ade80', borderColor: '#4ade80', color: '#000' }}
+                className="w-full py-3.5 mb-2 font-bold text-sm rounded-xl bg-primary text-on-primary shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:bg-[#0d4430] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-150 border-none cursor-pointer"
               >
-                {submitting === 'kroger' ? '🛒 Submitting...' : `Push to King Soopers (${byStore.kroger.length})`}
+                {submitting === 'kroger' ? 'Submitting…' : `Push to King Soopers (${byStore.kroger.length})`}
               </button>
             )}
             {byStore.amazon.length > 0 && (
               <button
-                className="btn btn-primary btn-lg"
                 onClick={handleAmazonSubmit}
                 disabled={submitting !== null}
-                style={{ width: '100%', padding: '14px', fontSize: '1rem', marginBottom: '8px', background: '#ff9900', borderColor: '#ff9900', color: '#000' }}
+                className="w-full py-3.5 mb-2 font-bold text-sm rounded-xl text-on-surface border-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.98]"
+                style={{ backgroundColor: '#FF9900', color: '#111' }}
               >
-                {submitting === 'amazon' ? '🛒 Submitting...' : `Push to Amazon (${byStore.amazon.length})`}
+                {submitting === 'amazon' ? 'Submitting…' : `Push to Amazon (${byStore.amazon.length})`}
               </button>
             )}
             <button
               onClick={clearCart}
-              style={{
-                width: '100%', padding: '8px', background: 'none',
-                border: '1px solid rgba(255,255,255,0.1)', color: '#64748b',
-                borderRadius: '8px', cursor: 'pointer', fontSize: '0.82rem',
-              }}
+              className="w-full py-2 text-xs font-medium text-outline border border-[#bfc9c1] rounded-xl hover:border-error/40 hover:text-error bg-transparent cursor-pointer transition-colors"
             >
               Clear cart
             </button>
@@ -260,31 +220,31 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
   );
 }
 
+// ── Internal sub-components ─────────────────────────────────────────────────
+
 function StoreSection({
-  label, color, items, total, onRemove, onUpdateQty,
+  label, headerClass, items, total, onRemove, onUpdateQty,
 }: {
   label: string;
-  color: string;
+  headerClass: string;
   items: CartItem[];
   total: number;
   onRemove: (id: string) => void;
   onUpdateQty: (id: string, qty: number) => void;
 }) {
   return (
-    <div style={{ marginBottom: '24px' }}>
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        marginBottom: '12px', paddingBottom: '8px',
-        borderBottom: `1px solid ${color}30`,
-      }}>
-        <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
+    <div className="mb-6">
+      <div className={`flex justify-between items-center mb-3 px-3 py-2 rounded-lg border ${headerClass}`}>
+        <span className="text-xs font-bold uppercase tracking-wider">
           {label} ({items.length})
-        </h3>
-        <span style={{ fontSize: '0.88rem', fontWeight: 600, color }}>${total.toFixed(2)}</span>
+        </span>
+        <span className="text-sm font-bold">${total.toFixed(2)}</span>
       </div>
-      {items.map((item) => (
-        <CartItemRow key={item.id} item={item} onRemove={onRemove} onUpdateQty={onUpdateQty} />
-      ))}
+      <div className="space-y-1">
+        {items.map((item) => (
+          <CartItemRow key={item.id} item={item} onRemove={onRemove} onUpdateQty={onUpdateQty} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -299,54 +259,52 @@ function CartItemRow({
   const linePrice = item.price > 0 ? `$${(item.price * item.quantity).toFixed(2)}` : 'N/A';
 
   return (
-    <div style={{
-      display: 'flex', gap: '12px', padding: '10px 0',
-      borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center',
-    }}>
+    <div className="flex gap-3 py-2.5 px-1 items-center border-b border-[#edeeef] last:border-0">
       {item.image_url && (
         <Image
           src={item.image_url}
           alt={item.name}
           width={44}
           height={44}
-          style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0, background: '#1e293b' }}
+          className="rounded-lg object-cover flex-shrink-0 bg-surface-container-low"
         />
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: '0.88rem', fontWeight: 600,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {item.name}
-        </div>
-        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-on-surface truncate">{item.name}</p>
+        <p className="text-xs text-outline mt-0.5 truncate">
           {item.brand}{item.size ? ` · ${item.size}` : ''}
-        </div>
+        </p>
       </div>
 
       {/* Qty stepper */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+      <div className="flex items-center gap-1 flex-shrink-0 bg-surface-container rounded-full border border-[#bfc9c1]/60">
         <button
           onClick={() => item.quantity > 1 ? onUpdateQty(item.id, item.quantity - 1) : onRemove(item.id)}
-          style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >−</button>
-        <span style={{ minWidth: 18, textAlign: 'center', fontSize: '0.88rem', fontWeight: 600 }}>
-          {item.quantity}
-        </span>
+          className="w-7 h-7 flex items-center justify-center text-outline hover:text-primary rounded-full transition-colors cursor-pointer bg-transparent border-none"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>remove</span>
+        </button>
+        <span className="w-5 text-center text-xs font-bold text-on-surface">{item.quantity}</span>
         <button
           onClick={() => onUpdateQty(item.id, item.quantity + 1)}
-          style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >+</button>
+          className="w-7 h-7 flex items-center justify-center text-outline hover:text-primary rounded-full transition-colors cursor-pointer bg-transparent border-none"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+        </button>
       </div>
 
       {/* Price + remove */}
-      <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 52 }}>
-        <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>{linePrice}</div>
+      <div className="text-right flex-shrink-0 min-w-[48px]">
+        <div className="text-sm font-bold text-primary">{linePrice}</div>
         <button
           onClick={() => onRemove(item.id)}
-          style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.68rem', cursor: 'pointer', padding: '2px 0' }}
-        >Remove</button>
+          className="text-[10px] text-outline hover:text-error transition-colors cursor-pointer bg-transparent border-none"
+        >
+          Remove
+        </button>
       </div>
     </div>
   );
 }
+
+// ── Internal sub-components

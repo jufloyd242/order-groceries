@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { AddItemBar } from '../components/AddItemBar';
+import { AddItemBar, AddItemBarRef } from '../components/AddItemBar';
 import { ListItem, ListItemData } from '../components/ListItem';
 import { SyncButton } from '../components/SyncButton';
 import { BatchActionBar } from '../components/BatchActionBar';
+import { DepartmentSection } from '../components/DepartmentSection';
 
 export default function Home() {
   const router = useRouter();
+  const addItemBarRef = useRef<AddItemBarRef>(null);
   const [items, setItems] = useState<ListItemData[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
@@ -360,57 +362,44 @@ export default function Home() {
   }
 
   return (
-    <div className="container" style={{ paddingBottom: '120px' }}>
-      {/* Header */}
-      <header className="page-header" style={{ marginBottom: '1rem', paddingTop: '2.5rem' }}>
+    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-6 pb-32">
+
+      {/* ── Page header ──────────────────────────────────────── */}
+      <header className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="page-title">🛒 Grocery Inbox</h1>
+          <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>
+            Grocery List
+          </h1>
           {skippedIds.size > 0 && (
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-              {skippedIds.size} skipped
-            </p>
+            <p className="text-sm text-outline mt-1">{skippedIds.size} skipped</p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
+        <div className="flex items-center gap-2">
           <SyncButton syncing={syncing} onSync={syncFromTodoist} />
 
           {/* ⋯ Overflow menu */}
-          <div ref={overflowRef} style={{ position: 'relative' }}>
+          <div ref={overflowRef} className="relative">
             <button
-              className="btn btn-secondary btn-icon"
               onClick={() => setOverflowOpen((v) => !v)}
               aria-label="More options"
-              style={{ fontSize: '1.1rem', fontWeight: 700 }}
+              className="w-10 h-10 flex items-center justify-center rounded-xl border border-[#bfc9c1] text-outline hover:text-on-surface hover:border-outline transition-colors cursor-pointer bg-transparent text-xl font-bold"
             >
-              ⋯
+              ···
             </button>
             {overflowOpen && (
-              <div style={{
-                position: 'absolute', top: '110%', right: 0, zIndex: 200,
-                background: 'var(--bg-secondary)', border: '1px solid var(--border-medium)',
-                borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                minWidth: 200, overflow: 'hidden',
-              }}>
+              <div className="absolute top-[110%] right-0 z-50 bg-white border border-[#edeeef] rounded-2xl shadow-xl min-w-[200px] overflow-hidden">
                 {[
-                  { label: '📌 Restore Pinned', action: () => { restorePinned(); setOverflowOpen(false); }, disabled: restoringPinned, hint: 'Move pinned items back to list' },
-                  { label: '⚙️ Preferences', action: () => { router.push('/preferences'); setOverflowOpen(false); }, hint: 'Product mappings' },
-                  { label: '🔧 Settings', action: () => { router.push('/settings'); setOverflowOpen(false); }, hint: 'Store & API config' },
-                ].map(({ label, action, disabled, hint }) => (
+                  { label: 'Restore Pinned', icon: 'push_pin', action: () => { restorePinned(); setOverflowOpen(false); }, disabled: restoringPinned },
+                  { label: 'Preferences', icon: 'tune', action: () => { router.push('/preferences'); setOverflowOpen(false); } },
+                  { label: 'Settings', icon: 'settings', action: () => { router.push('/settings'); setOverflowOpen(false); } },
+                ].map(({ label, icon, action, disabled }) => (
                   <button
                     key={label}
                     onClick={action}
                     disabled={disabled}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '10px 16px', background: 'none', border: 'none',
-                      color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
-                      cursor: disabled ? 'default' : 'pointer', fontSize: '0.9rem',
-                      borderBottom: '1px solid var(--border-subtle)',
-                    }}
-                    onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                    title={hint}
+                    className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm font-medium text-on-surface border-b border-[#edeeef] last:border-0 hover:bg-surface-container-low disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer bg-transparent"
                   >
+                    <span className="material-symbols-outlined text-primary" style={{ fontSize: '16px' }}>{icon}</span>
                     {label}
                   </button>
                 ))}
@@ -420,24 +409,18 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Sync message */}
+      {/* Sync message toast */}
       {syncMessage && (
-        <div
-          className="glass-card animate-fade-in"
-          style={{
-            padding: 'var(--space-sm) var(--space-md)',
-            marginBottom: 'var(--space-md)',
-            fontSize: '0.9rem',
-            border: `1px solid ${syncMessage.startsWith('Error') ? 'var(--accent-red)' : 'var(--accent-green)'}`,
-            color: syncMessage.startsWith('Error') ? 'var(--accent-red)' : 'var(--accent-green)',
-            backgroundColor: 'rgba(0,0,0,0.4)',
-          }}
-        >
+        <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium border animate-fade-in ${
+          syncMessage.startsWith('Error') || syncMessage.startsWith('❌')
+            ? 'bg-error-container text-error border-error/20'
+            : 'bg-primary-container text-on-primary-container border-primary/20'
+        }`}>
           {syncMessage}
         </div>
       )}
 
-      {/* Search/Compare bar — always visible when the list has items */}
+      {/* Batch action bar (sticky) */}
       <BatchActionBar
         selectedCount={selectedIds.size}
         onSearch={handleBatchSearch}
@@ -445,109 +428,62 @@ export default function Home() {
         onClear={() => setSelectedIds(new Set())}
       />
 
-      {/* Add Item Input */}
-      <AddItemBar onAdd={addItems} />
+      {/* ── Bento grid ───────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
 
-      {/* Shopping List */}
-      {todaysListItems.length > 0 && (
-        <div className="glass-card" style={{ marginTop: 'var(--space-lg)' }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 'var(--space-md)',
-            }}
-          >
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={toggleSelectAll}
-                  disabled={selectableIds.length === 0}
-                  style={{ width: 16, height: 16, accentColor: '#84cc16', cursor: 'pointer' }}
-                  aria-label="Select all"
-                />
-              TODAY&apos;S LIST
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                {todaysListItems.length} item{todaysListItems.length !== 1 ? 's' : ''}
-              </span>
-            </h2>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '4px 12px' }}
-              onClick={clearList}
-            >
-              Clear All
-            </button>
+        {/* ── Left column: list ─── */}
+        <div className="lg:col-span-8 flex flex-col gap-4">
+
+          {/* Quick Add card */}
+          <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-5">
+            <AddItemBar ref={addItemBarRef} onAdd={addItems} />
           </div>
 
-          <div>
-            {/* 📌 Pinned shelf */}
-            {pinnedItems.length > 0 && (
-              <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700,
-                            letterSpacing: '0.1em', textTransform: 'uppercase',
-                            padding: '0 0 4px', opacity: 0.7 }}>
-                📌 Staples
-              </div>
-            )}
-            {pinnedItems.map((item, index) => (
-              <ListItem
-                key={item.id}
-                item={item}
-                index={index}
-                onRemove={removeItem}
-                selected={selectedIds.has(item.id)}
-                skipped={skippedIds.has(item.id)}
-                onToggle={toggleSelect}
-                onTogglePersistent={togglePersistent}
-                onQuantityChange={handleQuantityChange}
-                onSkip={handleSkip}
-                onRename={handleRename}
-              />
-            ))}
+          {/* Pinned staples */}
+          {pinnedItems.length > 0 && (
+            <DepartmentSection department="Staples" itemCount={pinnedItems.length}>
+              {pinnedItems.map((item, index) => (
+                <ListItem
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  onRemove={removeItem}
+                  selected={selectedIds.has(item.id)}
+                  skipped={skippedIds.has(item.id)}
+                  onToggle={toggleSelect}
+                  onTogglePersistent={togglePersistent}
+                  onQuantityChange={handleQuantityChange}
+                  onSkip={handleSkip}
+                  onRename={handleRename}
+                />
+              ))}
+            </DepartmentSection>
+          )}
 
-            {/* Subtle divider between pinned shelf and today's items */}
-            {pinnedItems.length > 0 && regularActiveItems.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0 2px', margin: '4px 0 2px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-                  Today
-                </span>
-              </div>
-            )}
-
-            {/* Regular (non-pinned) active items — grouped by aisle when dept data exists */}
-            {deptGroups ? (
-              sortedDepts.map((dept) => (
-                <div key={dept}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '8px 0 2px', margin: '4px 0 2px',
-                    borderTop: '1px solid rgba(255,255,255,0.06)',
-                  }}>
-                    <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-                      {dept}
-                    </span>
-                  </div>
-                  {deptGroups[dept].map((item, index) => (
-                    <ListItem
-                      key={item.id}
-                      item={item}
-                      index={pinnedItems.length + index}
-                      onRemove={removeItem}
-                      selected={selectedIds.has(item.id)}
-                      skipped={skippedIds.has(item.id)}
-                      onToggle={toggleSelect}
-                      onTogglePersistent={togglePersistent}
-                      onQuantityChange={handleQuantityChange}
-                      onSkip={handleSkip}
-                      onRename={handleRename}
-                    />
-                  ))}
-                </div>
-              ))
-            ) : (
-              regularActiveItems.map((item, index) => (
+          {/* Today's items — grouped by dept or flat */}
+          {deptGroups ? (
+            sortedDepts.map((dept) => (
+              <DepartmentSection key={dept} department={dept} itemCount={deptGroups[dept].length}>
+                {deptGroups[dept].map((item, index) => (
+                  <ListItem
+                    key={item.id}
+                    item={item}
+                    index={pinnedItems.length + index}
+                    onRemove={removeItem}
+                    selected={selectedIds.has(item.id)}
+                    skipped={skippedIds.has(item.id)}
+                    onToggle={toggleSelect}
+                    onTogglePersistent={togglePersistent}
+                    onQuantityChange={handleQuantityChange}
+                    onSkip={handleSkip}
+                    onRename={handleRename}
+                  />
+                ))}
+              </DepartmentSection>
+            ))
+          ) : regularActiveItems.length > 0 ? (
+            <DepartmentSection department="Today's List" itemCount={regularActiveItems.length}>
+              {regularActiveItems.map((item, index) => (
                 <ListItem
                   key={item.id}
                   item={item}
@@ -561,170 +497,180 @@ export default function Home() {
                   onSkip={handleSkip}
                   onRename={handleRename}
                 />
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Previously Purchased */}
-      {purchasedItems.length > 0 && (
-        <div className="glass-card" style={{ marginTop: 'var(--space-lg)' }}>
-          {/* Header row — always visible */}
-          <button
-            onClick={() => setShowPurchased((v) => !v)}
-            style={{
-              display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center',
-              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 8px',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              {showPurchased ? '▲' : '▼'} Previously Purchased
-            </span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {purchasedItems.length} item{purchasedItems.length !== 1 ? 's' : ''}
-              {purchasedSelectedIds.size > 0 && ` · ${purchasedSelectedIds.size} selected`}
-            </span>
-          </button>
-
-          {showPurchased && (
-            <div>
-              {/* Bulk reorder action */}
-              {purchasedSelectedIds.size > 0 && (
-                <div style={{ marginBottom: '8px' }}>
-                  <button
-                    className="btn btn-primary"
-                    style={{ fontSize: '0.8rem', padding: '5px 14px' }}
-                    onClick={reorderSelected}
-                  >
-                    ↩ Re-add {purchasedSelectedIds.size} to list
-                  </button>
-                </div>
-              )}
-
-              {purchasedItems.map((item) => (
-                <div
-                  key={item.id}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={purchasedSelectedIds.has(item.id)}
-                    onChange={() => setPurchasedSelectedIds((prev) => {
-                      const next = new Set(prev);
-                      next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                      return next;
-                    })}
-                    style={{ width: 15, height: 15, flexShrink: 0, accentColor: '#84cc16', cursor: 'pointer' }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: '0.9rem', textDecoration: 'line-through', color: 'var(--text-secondary)', opacity: 0.6 }}>
-                      {item.raw_text}
-                    </span>
-                    {item.preference && item.preference.display_name.toLowerCase() !== item.raw_text.toLowerCase() && (
-                      <span style={{ marginLeft: 6, fontSize: '0.72rem', textDecoration: 'none', color: 'var(--text-muted)' }}>
-                        · {item.preference.display_name}
-                      </span>
-                    )}
-                  </div>
-                  {/* Pin toggle */}
-                  <button
-                    onClick={() => togglePersistent(item.id)}
-                    title={item.persistent ? 'Pinned — click to unpin' : 'Pin to restore later'}
-                    style={{
-                      background: item.persistent ? 'rgba(132,204,22,0.12)' : 'none',
-                      border: item.persistent ? '1px solid rgba(132,204,22,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                      borderRadius: 6, color: item.persistent ? '#84cc16' : '#475569',
-                      fontSize: '0.72rem', cursor: 'pointer', padding: '2px 6px', flexShrink: 0,
-                    }}
-                  >
-                    📌
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-icon"
-                    style={{ fontSize: '0.85rem', width: 26, height: 26, flexShrink: 0, opacity: 0.6 }}
-                    onClick={() => removeItem(item.id)}
-                    aria-label="Remove"
-                  >
-                    ✕
-                  </button>
-                </div>
               ))}
+            </DepartmentSection>
+          ) : null}
+
+          {/* Carted banner */}
+          {cartedCount > 0 && (
+            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/5 border border-primary/20 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                <span className="text-sm font-semibold text-primary">
+                  {cartedCount} item{cartedCount !== 1 ? 's' : ''} added to cart
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => router.push('/compare')}
+                  className="text-xs font-semibold text-primary border border-primary/20 rounded-lg px-3 py-1.5 hover:bg-primary/5 bg-transparent cursor-pointer transition-colors"
+                >
+                  Compare
+                </button>
+                <button
+                  onClick={revertCartItems}
+                  className="text-xs font-medium text-outline border border-[#bfc9c1] rounded-lg px-3 py-1.5 hover:border-error/40 hover:text-error bg-transparent cursor-pointer transition-colors"
+                >
+                  Not in cart
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {todaysListItems.length === 0 && purchasedItems.length === 0 && (
+            <div className="text-center py-20 animate-fade-in">
+              <span className="material-symbols-outlined text-6xl text-outline/30 block mb-4" style={{ fontVariationSettings: "'FILL' 1" }}>shopping_cart</span>
+              <h2 className="text-xl font-bold text-on-surface mb-2" style={{ fontFamily: 'var(--font-display)' }}>Your list is empty</h2>
+              <p className="text-sm text-on-surface-variant max-w-sm mx-auto leading-relaxed">
+                Add items above or sync from Todoist. Tap an item to find it at King Soopers.
+              </p>
             </div>
           )}
         </div>
-      )}
 
-      {/* Empty state */}
-      {todaysListItems.length === 0 && purchasedItems.length === 0 && (
-        <div
-          className="glass-card animate-fade-in"
-          style={{
-            marginTop: 'var(--space-2xl)',
-            textAlign: 'center',
-            padding: '4rem 2rem',
-          }}
-        >
-          <div style={{ fontSize: '4rem', marginBottom: 'var(--space-md)', opacity: 0.8 }}>🛒</div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
-            Your inbox is empty
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: 400, margin: '0 auto', fontSize: '1.05rem', lineHeight: 1.5 }}>
-            Add items above or sync from Todoist. Tap an item to find it at King Soopers.
-          </p>
+        {/* ── Right column: summary ─── */}
+        <div className="lg:col-span-4 flex flex-col gap-4">
+
+          {/* Summary card */}
+          {todaysListItems.length > 0 && (
+            <div className="bg-primary-container rounded-2xl p-5 shadow-md">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-on-primary-container/70 mb-4" style={{ fontFamily: 'var(--font-display)' }}>
+                List Summary
+              </h3>
+              <div className="space-y-2 mb-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-on-primary-container/80">Total items</span>
+                  <span className="text-lg font-bold text-on-primary-container" style={{ fontFamily: 'var(--font-display)' }}>{todaysListItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-on-primary-container/80">Selected</span>
+                  <span className="text-base font-semibold text-on-primary-container">{selectedIds.size}</span>
+                </div>
+                {skippedIds.size > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-on-primary-container/80">Skipped</span>
+                    <span className="text-base font-semibold text-on-primary-container">{skippedIds.size}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Select all / Compare CTA */}
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={toggleSelectAll}
+                  disabled={selectableIds.length === 0}
+                  className="w-full py-2.5 text-sm font-semibold bg-white/20 text-on-primary-container rounded-xl border border-white/30 hover:bg-white/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  {allSelected ? 'Deselect All' : 'Select All'}
+                </button>
+                <button
+                  onClick={() => handleBatchCompare(true)}
+                  disabled={selectedIds.size === 0}
+                  className="w-full py-2.5 text-sm font-bold bg-primary text-on-primary rounded-xl shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:bg-[#0d4430] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer border-none"
+                >
+                  Compare Prices →
+                </button>
+                <button
+                  onClick={clearList}
+                  className="w-full py-2 text-xs font-medium text-on-primary-container/60 hover:text-error border-none bg-transparent cursor-pointer transition-colors"
+                >
+                  Clear non-pinned items
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Purchased section */}
+          {purchasedItems.length > 0 && (
+            <div className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] overflow-hidden">
+              <button
+                onClick={() => setShowPurchased((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-3 bg-surface-container-low border-b border-[#edeeef] cursor-pointer bg-transparent border-none"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-on-surface-variant" style={{ fontFamily: 'var(--font-display)' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  Purchased
+                </span>
+                <span className="flex items-center gap-2 text-xs text-outline">
+                  {purchasedItems.length}
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                    {showPurchased ? 'expand_less' : 'expand_more'}
+                  </span>
+                </span>
+              </button>
+
+              {showPurchased && (
+                <div className="p-3">
+                  {purchasedSelectedIds.size > 0 && (
+                    <button
+                      onClick={reorderSelected}
+                      className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-primary border border-primary/20 rounded-lg px-3 py-1.5 hover:bg-primary/5 bg-transparent cursor-pointer transition-colors"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>undo</span>
+                      Re-add {purchasedSelectedIds.size} to list
+                    </button>
+                  )}
+                  <div className="divide-y divide-[#edeeef]">
+                    {purchasedItems.map((item) => (
+                      <div key={item.id} className="flex items-center gap-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={purchasedSelectedIds.has(item.id)}
+                          onChange={() => setPurchasedSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                            return next;
+                          })}
+                          className="w-4 h-4 flex-shrink-0 accent-primary cursor-pointer"
+                        />
+                        <span className="flex-1 text-sm line-through text-outline truncate">{item.raw_text}</span>
+                        <button
+                          onClick={() => togglePersistent(item.id)}
+                          className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border transition-colors cursor-pointer bg-transparent ${item.persistent ? 'border-primary/30 text-primary bg-primary/5' : 'border-[#bfc9c1] text-outline'}`}
+                          title={item.persistent ? 'Pinned' : 'Pin to restore'}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: item.persistent ? "'FILL' 1" : "'FILL' 0" }}>push_pin</span>
+                        </button>
+                        <button
+                          onClick={() => removeItem(item.id)}
+                          aria-label="Remove"
+                          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-outline hover:text-error transition-colors cursor-pointer bg-transparent border-none"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* Carted items banner — shown when DB has items stuck in 'carted' state */}
-      {cartedCount > 0 && (
-        <div
-          className="glass-card animate-fade-in"
-          style={{
-            marginTop: 'var(--space-lg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '10px 16px',
-            border: '1px solid rgba(34,197,94,0.25)',
-            background: 'rgba(34,197,94,0.06)',
-          }}
-        >
-          <span style={{ fontSize: '0.9rem', color: '#4ade80' }}>
-            ✅ {cartedCount} item{cartedCount !== 1 ? 's' : ''} added to cart
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '4px 12px' }}
-              onClick={() => router.push('/compare')}
-            >
-              📊 Compare
-            </button>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '4px 12px', color: 'var(--text-muted)' }}
-              onClick={revertCartItems}
-            >
-              ↩ Not in cart
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      <footer
-        style={{
-          textAlign: 'center',
-          padding: 'var(--space-xl) 0',
-          color: 'var(--text-muted)',
-          fontSize: '0.8rem',
-        }}
+      {/* Mobile FAB — quick add shortcut */}
+      <button
+        onClick={() => addItemBarRef.current?.focus()}
+        aria-label="Add item"
+        className="fixed bottom-24 right-6 md:hidden w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl shadow-primary/30 flex items-center justify-center active:scale-90 transition-all duration-200 z-40 border-none cursor-pointer"
       >
+        <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>add</span>
+      </button>
+
+      <footer className="text-center py-12 text-xs text-outline">
         King Soopers · Amazon · Powered by Kroger API &amp; SerpApi
       </footer>
     </div>
   );
 }
-

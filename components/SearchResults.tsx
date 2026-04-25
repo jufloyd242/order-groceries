@@ -26,19 +26,17 @@ export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, 
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-secondary)' }}>
-        <div style={{ fontSize: '2rem', marginBottom: 'var(--space-md)', animation: 'spin 2s linear infinite' }}>
-          🔍
-        </div>
-        <p>Searching for products...</p>
+      <div className="text-center py-16 text-on-surface-variant">
+        <span className="material-symbols-outlined text-outline" style={{ fontSize: '2.5rem', animation: 'spin 2s linear infinite' }}>search</span>
+        <p className="mt-3 text-sm">Searching for products...</p>
       </div>
     );
   }
 
   if (results.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-secondary)' }}>
-        <p style={{ fontSize: '1.1rem' }}>No products found</p>
+      <div className="text-center py-16 text-on-surface-variant">
+        <p className="text-base">No products found</p>
       </div>
     );
   }
@@ -49,7 +47,7 @@ export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, 
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+      <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
         {slice.map((product) => {
           const key = `${product.store}-${product.id}`;
           return (
@@ -68,43 +66,29 @@ export function SearchResults({ results, addedIds, selectedIds, onToggleSelect, 
         })}
       </div>
       {totalPages > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '12px',
-            marginTop: 'var(--space-lg)',
-          }}
-        >
+        <div className="flex items-center justify-center gap-3 mt-6">
           <button
             onClick={() => setPage((p) => p - 1)}
             disabled={page <= 1}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem',
-              border: '1px solid rgba(255,255,255,0.12)',
-              cursor: page <= 1 ? 'default' : 'pointer',
-              background: 'none',
-              color: page <= 1 ? '#475569' : '#e2e8f0',
-              opacity: page <= 1 ? 0.5 : 1,
-            }}
+            className={`px-4 py-1.5 rounded-lg text-sm border transition-colors ${
+              page <= 1
+                ? 'border-[#edeeef] text-outline cursor-default opacity-50'
+                : 'border-[#edeeef] text-on-surface cursor-pointer hover:bg-surface-container-low'
+            }`}
           >
             ← Prev
           </button>
-          <span style={{ fontSize: '0.85rem', color: '#94a3b8', minWidth: '80px', textAlign: 'center' }}>
+          <span className="text-sm text-on-surface-variant min-w-[80px] text-center">
             Page {page} of {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => p + 1)}
             disabled={page >= totalPages}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem',
-              border: '1px solid rgba(255,255,255,0.12)',
-              cursor: page >= totalPages ? 'default' : 'pointer',
-              background: 'none',
-              color: page >= totalPages ? '#475569' : '#e2e8f0',
-              opacity: page >= totalPages ? 0.5 : 1,
-            }}
+            className={`px-4 py-1.5 rounded-lg text-sm border transition-colors ${
+              page >= totalPages
+                ? 'border-[#edeeef] text-outline cursor-default opacity-50'
+                : 'border-[#edeeef] text-on-surface cursor-pointer hover:bg-surface-container-low'
+            }`}
           >
             Next →
           </button>

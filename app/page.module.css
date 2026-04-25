@@ -1,9 +1,6 @@
+/* Legacy module styles — no longer used (Tailwind handles layout) */
 .addBar {
   display: flex;
-  gap: var(--space-sm);
+  gap: 8px;
   align-items: flex-start;
-}
-
-.addBar input {
-  flex: 1;
 }
