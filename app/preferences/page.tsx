@@ -94,7 +94,7 @@ export default function PreferencesPage() {
   }
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-10 pb-10">
+    <div className="flex-1 max-w-[1280px] mx-auto w-full px-4 md:px-6 pt-10 pb-10">
       {/* Header */}
       <header className="mb-8">
         <div className="flex justify-between items-center mb-4">

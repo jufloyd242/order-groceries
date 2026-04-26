@@ -117,7 +117,7 @@ export function ListItem({
 
       {/* ── Thumbnail ── */}
       <div
-        className="w-10 h-10 flex-shrink-0 rounded-lg bg-surface-container-low overflow-hidden flex items-center justify-center text-base border border-[#edeeef]"
+        className="w-14 h-14 flex-shrink-0 rounded-xl bg-surface-container-low overflow-hidden flex items-center justify-center text-xl border border-[#edeeef]"
         style={{ opacity: isLocked ? 0.45 : 1 }}
       >
         {imageUrl ? (

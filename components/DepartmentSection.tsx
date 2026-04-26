@@ -21,6 +21,8 @@ interface DepartmentSectionProps {
   itemCount: number;
   children: ReactNode;
   defaultOpen?: boolean;
+  onSelectAll?: () => void;
+  allSelected?: boolean;
 }
 
 export function DepartmentSection({
@@ -28,6 +30,8 @@ export function DepartmentSection({
   itemCount,
   children,
   defaultOpen = true,
+  onSelectAll,
+  allSelected,
 }: DepartmentSectionProps) {
   const icon = DEPT_ICON[department] ?? 'shopping_basket';
 
@@ -47,6 +51,14 @@ export function DepartmentSection({
         >
           {department}
         </span>
+        {onSelectAll && (
+          <button
+            onClick={onSelectAll}
+            className="text-[11px] font-semibold text-primary hover:text-[#0d4430] transition-colors cursor-pointer bg-transparent border-none px-1 py-0.5 rounded"
+          >
+            {allSelected ? 'Deselect' : 'Select all'}
+          </button>
+        )}
         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] font-bold">
           {itemCount}
         </span>

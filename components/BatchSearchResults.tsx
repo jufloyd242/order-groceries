@@ -49,7 +49,7 @@ export function BatchSearchResults({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+    <div className="flex flex-col gap-4">
       {items.map((item) => {
         const isLoading = loadingIds.has(item.id);
         const result = results.get(item.id);
@@ -70,128 +70,115 @@ export function BatchSearchResults({
         return (
           <div
             key={item.id}
-            style={{
-              border: isDone
-                ? '1px solid rgba(34, 197, 94, 0.3)'
-                : '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              background: isDone ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255,255,255,0.02)',
-              transition: 'border-color 0.2s',
-            }}
+            className={`bg-white rounded-2xl border overflow-hidden shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] transition-colors ${
+              isDone ? 'border-[#22c55e]/30 bg-[#22c55e]/[0.02]' : 'border-[#edeeef]'
+            }`}
           >
             {/* Section Header */}
             <button
               onClick={() => toggleCollapse(item.id)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '14px 16px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-primary/[0.04] border-b border-primary/10 text-left cursor-pointer hover:bg-primary/[0.07] transition-colors"
             >
               {/* Collapse arrow */}
               <span
-                style={{
-                  fontSize: '0.75rem',
-                  color: '#64748b',
-                  transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s',
-                  flexShrink: 0,
-                }}
+                className="material-symbols-outlined text-outline flex-shrink-0 transition-transform duration-150"
+                style={{ fontSize: '16px', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
               >
-                ▶
+                chevron_right
               </span>
 
               {/* Item name */}
               <span
-                style={{
-                  fontWeight: 600,
-                  fontSize: '1rem',
-                  color: isDone ? '#22c55e' : '#f8fafc',
-                  flex: 1,
-                  textDecoration: isDone ? 'line-through' : 'none',
-                  opacity: isDone ? 0.7 : 1,
-                }}
+                className={`flex-1 font-semibold text-sm ${
+                  isDone ? 'line-through text-outline' : 'text-on-surface'
+                }`}
+                style={{ fontFamily: 'var(--font-display)' }}
               >
                 {item.raw_text}
               </span>
 
-              {/* Status */}
+              {/* Status / count badge */}
               {isDone ? (
-                <span style={{ fontSize: '0.82rem', color: '#22c55e', flexShrink: 0 }}>✅ Added</span>
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-[#16a34a] bg-[#22c55e]/10 rounded-full px-2 py-0.5 flex-shrink-0">
+                  <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  Added
+                </span>
               ) : isLoading ? (
-                <span style={{ fontSize: '0.82rem', color: '#64748b', flexShrink: 0 }}>🔍 Searching…</span>
+                <span className="flex items-center gap-1 text-[11px] font-medium text-outline flex-shrink-0">
+                  <span className="material-symbols-outlined" style={{ fontSize: '13px', animation: 'spin 2s linear infinite' }}>search</span>
+                  Searching…
+                </span>
               ) : result ? (
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8', flexShrink: 0 }}>
-                  {totalCount} result{totalCount !== 1 ? 's' : ''}
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-on-primary text-[10px] font-bold flex-shrink-0">
+                  {totalCount}
                 </span>
               ) : null}
             </button>
 
             {/* Section Body */}
             {isOpen && !isDone && (
-              <div style={{ padding: '0 16px 16px' }}>
+              <div className="p-4">
                 {isLoading ? (
-                  <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '0.9rem' }}>
+                  <div className="text-center py-10 text-on-surface-variant text-sm">
                     Searching for &ldquo;{item.raw_text}&rdquo;…
                   </div>
                 ) : storeProducts.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '0.9rem' }}>
+                  <div className="text-center py-10 text-on-surface-variant text-sm">
                     No products found for &ldquo;{item.raw_text}&rdquo;
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 'var(--space-md)' }}>
+                  <div>
                     {/* KS sub-header when showing both stores */}
                     {activeStore === 'both' && krogerProducts.length > 0 && (
-                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#b8d962', marginBottom: '-4px', marginTop: '4px' }}>
-                        🟢 King Soopers ({krogerProducts.length})
-                      </div>
+                      <p className="text-xs font-bold text-kroger mb-2 mt-0">
+                        <span className="material-symbols-outlined align-middle mr-1" style={{ fontSize: '13px' }}>store</span>
+                        King Soopers ({krogerProducts.length})
+                      </p>
                     )}
-                    {(activeStore === 'kroger' || activeStore === 'both') &&
-                      krogerProducts.map((product) => {
-                        const key = `${product.store}-${product.id}`;
-                        return (
-                          <ProductCard
-                            key={key}
-                            product={product}
-                            isAdded={addedIds.has(key)}
-                            isSelected={selectedIds.has(key)}
-                            onToggleSelect={() => onToggleSelect(key, item.id)}
-                            isRemembered={rememberedKeys.get(item.id) === key}
-                            onSelectRemember={() => onSelectRemember(key, item.id)}
-                            radioGroupName={`remember-${item.id}`}
-                          />
-                        );
-                      })}
+                    <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                      {(activeStore === 'kroger' || activeStore === 'both') &&
+                        krogerProducts.map((product) => {
+                          const key = `${product.store}-${product.id}`;
+                          return (
+                            <ProductCard
+                              key={key}
+                              product={product}
+                              isAdded={addedIds.has(key)}
+                              isSelected={selectedIds.has(key)}
+                              onToggleSelect={() => onToggleSelect(key, item.id)}
+                              isRemembered={rememberedKeys.get(item.id) === key}
+                              onSelectRemember={() => onSelectRemember(key, item.id)}
+                              radioGroupName={`remember-${item.id}`}
+                            />
+                          );
+                        })}
+                    </div>
 
                     {/* Amazon sub-header when showing both stores */}
                     {activeStore === 'both' && amazonProducts.length > 0 && (
-                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#ff9900', marginBottom: '-4px', marginTop: '8px' }}>
-                        🟠 Amazon ({amazonProducts.length})
-                      </div>
+                      <p className="text-xs font-bold text-amazon mb-2 mt-2">
+                        <span className="material-symbols-outlined align-middle mr-1" style={{ fontSize: '13px' }}>local_shipping</span>
+                        Amazon ({amazonProducts.length})
+                      </p>
                     )}
-                    {(activeStore === 'amazon' || activeStore === 'both') &&
-                      amazonProducts.map((product) => {
-                        const key = `${product.store}-${product.id}`;
-                        return (
-                          <ProductCard
-                            key={key}
-                            product={product}
-                            isAdded={addedIds.has(key)}
-                            isSelected={selectedIds.has(key)}
-                            onToggleSelect={() => onToggleSelect(key, item.id)}
-                            isRemembered={rememberedKeys.get(item.id) === key}
-                            onSelectRemember={() => onSelectRemember(key, item.id)}
-                            radioGroupName={`remember-${item.id}`}
-                          />
-                        );
-                      })}
+                    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                      {(activeStore === 'amazon' || activeStore === 'both') &&
+                        amazonProducts.map((product) => {
+                          const key = `${product.store}-${product.id}`;
+                          return (
+                            <ProductCard
+                              key={key}
+                              product={product}
+                              isAdded={addedIds.has(key)}
+                              isSelected={selectedIds.has(key)}
+                              onToggleSelect={() => onToggleSelect(key, item.id)}
+                              isRemembered={rememberedKeys.get(item.id) === key}
+                              onSelectRemember={() => onSelectRemember(key, item.id)}
+                              radioGroupName={`remember-${item.id}`}
+                            />
+                          );
+                        })}
+                    </div>
                   </div>
                 )}
               </div>

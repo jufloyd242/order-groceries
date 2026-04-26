@@ -41,7 +41,7 @@ export function ProductCard({
 
   return (
     <div
-      className={`p-4 rounded-xl border flex gap-3 items-center transition-all ${
+      className={`rounded-xl border flex flex-col transition-all overflow-hidden ${
         isAdded
           ? 'bg-primary/5 border-primary/25'
           : isSelected
@@ -49,26 +49,9 @@ export function ProductCard({
             : 'bg-white border-[#edeeef]'
       }`}
     >
-      {/* Select checkbox */}
-      <div className="flex-shrink-0 flex items-center">
-        {isAdded ? (
-          <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-        ) : (
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onToggleSelect}
-            className="w-[18px] h-[18px] cursor-pointer accent-primary"
-            aria-label={`Select ${product.name}`}
-          />
-        )}
-      </div>
-
-      {/* Image */}
-      {product.image_url && (
-        <div
-          className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container-low border border-[#edeeef]"
-        >
+      {/* Image — full-width 280px tall */}
+      <div className="relative w-full h-[280px] bg-surface-container-low border-b border-[#edeeef] flex-shrink-0">
+        {product.image_url ? (
           <Image
             src={product.image_url}
             alt={product.name}
@@ -76,24 +59,52 @@ export function ProductCard({
             style={{ objectFit: 'contain' }}
             unoptimized
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-5xl text-outline/30">
+            <span className="material-symbols-outlined" style={{ fontSize: '64px', fontVariationSettings: "'FILL' 1" }}>image_not_supported</span>
+          </div>
+        )}
+        {/* Checkbox — top-left overlay */}
+        <div className="absolute top-2 left-2">
+          {isAdded ? (
+            <span className="material-symbols-outlined text-primary drop-shadow" style={{ fontSize: '24px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          ) : (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              className="w-5 h-5 cursor-pointer accent-primary"
+              aria-label={`Select ${product.name}`}
+            />
+          )}
         </div>
-      )}
+        {/* Stock Up badge — top-right overlay */}
+        {isStockUpPrice && (
+          <span
+            className="absolute top-2 right-2 text-[11px] font-bold text-[#052e16] bg-[#4ade80] rounded px-1.5 py-0.5 tracking-tight"
+            title={`${Math.round((1 - displayPrice / historicalAvg!) * 100)}% below your avg of $${historicalAvg!.toFixed(2)}`}
+          >
+            Stock Up!
+          </span>
+        )}
+      </div>
 
-      <div className="flex-1 min-w-0">
+      {/* Card body */}
+      <div className="p-3 flex flex-col gap-1 flex-1">
         <div className="text-sm font-semibold text-on-surface leading-snug">
           {product.name}
         </div>
         {product.brand && (
-          <div className="text-xs text-on-surface-variant mt-0.5">
+          <div className="text-xs text-on-surface-variant">
             {product.brand}
           </div>
         )}
         {product.size && (
-          <span className="inline-block mt-0.5 text-[11px] font-bold tracking-wide text-outline bg-surface-container border border-[#bfc9c1]/60 rounded px-1.5 py-0.5 uppercase">
+          <span className="inline-block self-start text-[11px] font-bold tracking-wide text-outline bg-surface-container border border-[#bfc9c1]/60 rounded px-1.5 py-0.5 uppercase">
             {product.size}
           </span>
         )}
-        <div className="text-base font-bold mt-1 flex items-center gap-2 flex-wrap">
+        <div className="text-base font-bold mt-auto pt-2 flex items-center gap-2 flex-wrap">
           <span className={displayPrice > 0 ? 'text-primary' : 'text-outline'}>
             {displayPrice > 0 ? `$${displayPrice.toFixed(2)}` : 'Price unavailable'}
           </span>
@@ -102,42 +113,34 @@ export function ProductCard({
               ${price.toFixed(2)}
             </span>
           )}
-          {isStockUpPrice && (
-            <span
-              className="text-[11px] font-bold text-[#052e16] bg-[#4ade80] rounded px-1.5 py-0.5 tracking-tight"
-              title={`${Math.round((1 - displayPrice / historicalAvg!) * 100)}% below your avg of $${historicalAvg!.toFixed(2)}`}
-            >
-              Stock Up!
-            </span>
-          )}
         </div>
         {displayPrice > 0 && product.price_per_unit > 0 && product.unit && (
-          <div className="text-[11px] font-semibold text-on-surface-variant mt-0.5">
+          <div className="text-[11px] font-semibold text-on-surface-variant">
             ${product.price_per_unit.toFixed(2)}&nbsp;/&nbsp;{product.unit}
           </div>
         )}
-      </div>
 
-      {/* Remember radio */}
-      {onSelectRemember && (
-        <label
-          className={`flex-shrink-0 flex items-center gap-1 cursor-pointer text-[11px] px-2 py-1 border rounded-lg transition-all whitespace-nowrap ${
-            isRemembered
-              ? 'text-primary border-primary/30 bg-primary/8'
-              : 'text-on-surface-variant border-[#edeeef] bg-transparent'
-          }`}
-        >
-          <input
-            type="radio"
-            name={radioGroupName}
-            checked={!!isRemembered}
-            onChange={onSelectRemember}
-            className="w-3 h-3 accent-primary"
-          />
-          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>bookmark</span>
-          Remember
-        </label>
-      )}
+        {/* Remember radio */}
+        {onSelectRemember && (
+          <label
+            className={`mt-1 self-start flex items-center gap-1 cursor-pointer text-[11px] px-2 py-1 border rounded-lg transition-all whitespace-nowrap ${
+              isRemembered
+                ? 'text-primary border-primary/30 bg-primary/8'
+                : 'text-on-surface-variant border-[#edeeef] bg-transparent'
+            }`}
+          >
+            <input
+              type="radio"
+              name={radioGroupName}
+              checked={!!isRemembered}
+              onChange={onSelectRemember}
+              className="w-3 h-3 accent-primary"
+            />
+            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>bookmark</span>
+            Remember
+          </label>
+        )}
+      </div>
     </div>
   );
 }

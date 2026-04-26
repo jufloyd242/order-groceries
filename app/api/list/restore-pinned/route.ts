@@ -16,7 +16,7 @@ export async function POST() {
 
     const { data: updated, error } = await supabase
       .from('list_items')
-      .update({ status: 'pending' })
+      .update({ status: 'pending', purchased_at: null })
       .eq('persistent', true)
       .eq('status', 'purchased')
       .select('id');

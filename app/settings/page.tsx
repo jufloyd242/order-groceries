@@ -165,7 +165,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-10 pb-16">
+    <div className="flex-1 max-w-[1280px] mx-auto w-full px-4 md:px-6 pt-10 pb-16">
       <header className="flex items-start justify-between mb-8">
         <h1 className="text-3xl font-bold text-on-surface" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
         <button

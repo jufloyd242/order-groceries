@@ -26,6 +26,7 @@ export async function PATCH(request: NextRequest) {
       .from('list_items')
       .update({
         status: 'purchased',
+        purchased_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .in('id', itemIds);

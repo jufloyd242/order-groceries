@@ -311,6 +311,31 @@ export default function Home() {
   const allSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
 
+  // Per-section selectable IDs
+  const pinnedSelectableIds = pinnedItems
+    .filter((i) => i.status !== 'carted' && i.status !== 'purchased' && !skippedIds.has(i.id))
+    .map((i) => i.id);
+  const pinnedAllSelected =
+    pinnedSelectableIds.length > 0 && pinnedSelectableIds.every((id) => selectedIds.has(id));
+
+  const regularSelectableIds = regularActiveItems
+    .filter((i) => i.status !== 'carted' && i.status !== 'purchased' && !skippedIds.has(i.id))
+    .map((i) => i.id);
+  const regularAllSelected =
+    regularSelectableIds.length > 0 && regularSelectableIds.every((id) => selectedIds.has(id));
+
+  function toggleSelectGroup(ids: string[], isAllSelected: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isAllSelected) {
+        ids.forEach((id) => next.delete(id));
+      } else {
+        ids.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -441,7 +466,12 @@ export default function Home() {
 
           {/* Pinned staples */}
           {pinnedItems.length > 0 && (
-            <DepartmentSection department="Staples" itemCount={pinnedItems.length}>
+            <DepartmentSection
+              department="Staples"
+              itemCount={pinnedItems.length}
+              onSelectAll={() => toggleSelectGroup(pinnedSelectableIds, pinnedAllSelected)}
+              allSelected={pinnedAllSelected}
+            >
               {pinnedItems.map((item, index) => (
                 <ListItem
                   key={item.id}
@@ -462,27 +492,46 @@ export default function Home() {
 
           {/* Today's items — grouped by dept or flat */}
           {deptGroups ? (
-            sortedDepts.map((dept) => (
-              <DepartmentSection key={dept} department={dept} itemCount={deptGroups[dept].length}>
-                {deptGroups[dept].map((item, index) => (
-                  <ListItem
-                    key={item.id}
-                    item={item}
-                    index={pinnedItems.length + index}
-                    onRemove={removeItem}
-                    selected={selectedIds.has(item.id)}
-                    skipped={skippedIds.has(item.id)}
-                    onToggle={toggleSelect}
-                    onTogglePersistent={togglePersistent}
-                    onQuantityChange={handleQuantityChange}
-                    onSkip={handleSkip}
-                    onRename={handleRename}
-                  />
-                ))}
-              </DepartmentSection>
-            ))
+            sortedDepts.map((dept) => {
+              const deptItems = deptGroups[dept];
+              const deptSelectableIds = deptItems
+                .filter((i) => i.status !== 'carted' && i.status !== 'purchased' && !skippedIds.has(i.id))
+                .map((i) => i.id);
+              const deptAllSelected =
+                deptSelectableIds.length > 0 && deptSelectableIds.every((id) => selectedIds.has(id));
+              return (
+                <DepartmentSection
+                  key={dept}
+                  department={dept}
+                  itemCount={deptItems.length}
+                  onSelectAll={() => toggleSelectGroup(deptSelectableIds, deptAllSelected)}
+                  allSelected={deptAllSelected}
+                >
+                  {deptItems.map((item, index) => (
+                    <ListItem
+                      key={item.id}
+                      item={item}
+                      index={pinnedItems.length + index}
+                      onRemove={removeItem}
+                      selected={selectedIds.has(item.id)}
+                      skipped={skippedIds.has(item.id)}
+                      onToggle={toggleSelect}
+                      onTogglePersistent={togglePersistent}
+                      onQuantityChange={handleQuantityChange}
+                      onSkip={handleSkip}
+                      onRename={handleRename}
+                    />
+                  ))}
+                </DepartmentSection>
+              );
+            })
           ) : regularActiveItems.length > 0 ? (
-            <DepartmentSection department="Today's List" itemCount={regularActiveItems.length}>
+            <DepartmentSection
+              department="Today's List"
+              itemCount={regularActiveItems.length}
+              onSelectAll={() => toggleSelectGroup(regularSelectableIds, regularAllSelected)}
+              allSelected={regularAllSelected}
+            >
               {regularActiveItems.map((item, index) => (
                 <ListItem
                   key={item.id}
@@ -565,7 +614,7 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Select all / Compare CTA */}
+              {/* Select all / Clear */}
               <div className="flex flex-col gap-2">
                 <button
                   onClick={toggleSelectAll}
@@ -573,13 +622,6 @@ export default function Home() {
                   className="w-full py-2.5 text-sm font-semibold bg-white/20 text-on-primary-container rounded-xl border border-white/30 hover:bg-white/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   {allSelected ? 'Deselect All' : 'Select All'}
-                </button>
-                <button
-                  onClick={() => handleBatchCompare(true)}
-                  disabled={selectedIds.size === 0}
-                  className="w-full py-2.5 text-sm font-bold bg-primary text-on-primary rounded-xl shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:bg-[#0d4430] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer border-none"
-                >
-                  Compare Prices →
                 </button>
                 <button
                   onClick={clearList}

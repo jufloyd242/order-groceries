@@ -168,7 +168,7 @@ export default function SearchPage() {
     setLoadingAmazon(true);
     setAmazonResults([]);
     try {
-      const res = await fetch(`/api/amazon/products?q=${encodeURIComponent(q)}&zip=${zipCode}`);
+      const res = await fetch(`/api/amazon/products?q=${encodeURIComponent(q)}&zip=${zipCode}&limit=20`);
       const data = await res.json();
       if (data.success) setAmazonResults(data.products);
     } catch (err) {

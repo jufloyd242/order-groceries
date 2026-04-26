@@ -33,6 +33,7 @@ export async function PATCH(
 
     const updates: any = {
       status: 'purchased',
+      purchased_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 

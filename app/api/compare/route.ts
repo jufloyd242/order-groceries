@@ -4,7 +4,7 @@ import { resolveItem } from '@/lib/matching/preferences';
 import { searchProducts as searchKroger, getProductByUpc } from '@/lib/kroger/products';
 import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
-import { applySemanticMatching } from '@/lib/ai/groq';
+import { applySemanticMatching } from '@/lib/ai/gemini';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
 import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
 
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
           const [krogerResult, amazonResult] = await Promise.all([
             hasExactKroger
               ? getProductByUpc(pref!.preferred_upc!, locationId).catch(() => null)
-              : searchKroger(krogerQuery, locationId, 15, pref?.preferred_brand ?? undefined).catch((err) => {
+              : searchKroger(krogerQuery, locationId, 20, pref?.preferred_brand ?? undefined).catch((err) => {
                   console.error(`Kroger search failed for "${krogerQuery}" at location "${locationId}":`, err);
                   return [] as import('@/types').ProductMatch[];
                 }),
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
                       console.error(`Amazon ASIN lookup failed for "${pref!.preferred_asin}":`, err);
                       return null;
                     })
-                  : searchAmazon(amazonQuery, zipCode, 15).catch((err) => {
+                  : searchAmazon(amazonQuery, zipCode, 20).catch((err) => {
                       console.error(`Amazon search failed for "${amazonQuery}":`, err);
                       return [] as import('@/types').ProductMatch[];
                     }))
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
             krogerProducts = krogerResult ? [krogerResult as import('@/types').ProductMatch] : [];
             // If exact lookup failed, fall back to search
             if (krogerProducts.length === 0) {
-              krogerProducts = await searchKroger(krogerQuery, locationId, 15, pref?.preferred_brand ?? undefined).catch(() => []);
+              krogerProducts = await searchKroger(krogerQuery, locationId, 20, pref?.preferred_brand ?? undefined).catch(() => []);
             }
           } else {
             krogerProducts = krogerResult as import('@/types').ProductMatch[];

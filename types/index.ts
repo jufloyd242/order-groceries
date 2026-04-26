@@ -13,6 +13,7 @@ export interface ListItem {
   preference_id: string | null;
   status: 'pending' | 'matched' | 'compared' | 'carted' | 'purchased';
   created_at: string;
+  purchased_at?: string | null;  // set when status → 'purchased'; drives staple auto-reset
   persistent?: boolean;        // pinned staple — survives Clear All
   department?: string | null;  // Kroger aisle category
 }

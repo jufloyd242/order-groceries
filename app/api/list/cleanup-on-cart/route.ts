@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // 2. Soft-delete: mark all submitted items as 'purchased'
     const { error: updateError } = await supabase
       .from('list_items')
-      .update({ status: 'purchased' })
+      .update({ status: 'purchased', purchased_at: new Date().toISOString() })
       .in('id', listItemIds);
 
     if (updateError) throw updateError;

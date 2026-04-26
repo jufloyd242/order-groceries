@@ -18,6 +18,7 @@ export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: 
   const activeStores = ([kroger ? 'kroger' : null, amazon ? 'amazon' : null] as const).filter(
     (s): s is 'kroger' | 'amazon' => s !== null
   );
+  const multiStore = kroger && amazon;
 
   return (
     <div
@@ -67,7 +68,7 @@ export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: 
       {/* Actions */}
       <div className="flex gap-2 ml-auto">
         <button
-          disabled={activeStores.length === 0}
+          disabled={activeStores.length === 0 || multiStore}
           onClick={() => onSearch(activeStores)}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-xl shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:bg-[#0d4430] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 cursor-pointer border-none"
         >
@@ -75,12 +76,12 @@ export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: 
           Search {selectedCount}
         </button>
         <button
-          disabled={!amazon}
+          disabled={!multiStore}
           onClick={() => onCompare(amazon)}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white text-primary border-2 border-primary/15 rounded-xl hover:bg-primary/5 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 cursor-pointer"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>bar_chart</span>
-          Compare
+          Compare {selectedCount}
         </button>
       </div>
     </div>

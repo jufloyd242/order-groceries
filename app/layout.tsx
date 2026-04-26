@@ -41,7 +41,7 @@ export default async function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
         />
       </head>
-      <body className="bg-surface text-on-surface">
+      <body className="bg-surface text-on-surface flex flex-col min-h-screen">
         {/* ── Top Navigation ── */}
         <nav className="sticky top-0 z-50 flex items-center justify-between px-6 md:px-8 h-16 w-full bg-white/90 backdrop-blur-md border-b border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)]">
           {/* Brand + Nav links */}
@@ -69,8 +69,19 @@ export default async function RootLayout({
           {/* Right: user + sign out */}
           {user ? (
             <div className="flex items-center gap-3">
+              {user.user_metadata?.avatar_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.user_metadata.avatar_url}
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full border border-[#edeeef] flex-shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+              )}
               <span className="hidden sm:block text-sm text-on-surface-variant truncate max-w-[180px]">
-                {user.email}
+                {user.user_metadata?.full_name ?? user.email}
               </span>
               <form action="/api/auth/signout" method="POST">
                 <button
@@ -93,7 +104,9 @@ export default async function RootLayout({
 
         {/* ── Page content ── */}
         <CartProvider>
-          {children}
+          <main className="flex-1 flex flex-col">
+            {children}
+          </main>
           <CartButton />
         </CartProvider>
       </body>

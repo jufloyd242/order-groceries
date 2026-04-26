@@ -6,10 +6,22 @@ import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/li
  * GET /api/list
  * Returns all current shopping list items from Supabase.
  */
+// Staples purchased more than this many hours ago are automatically reset to 'pending'
+const STAPLE_RESET_HOURS = 24;
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Auto-reset staples that were purchased more than STAPLE_RESET_HOURS ago
+  const threshold = new Date(Date.now() - STAPLE_RESET_HOURS * 60 * 60 * 1000).toISOString();
+  await supabase
+    .from('list_items')
+    .update({ status: 'pending', purchased_at: null })
+    .eq('persistent', true)
+    .eq('status', 'purchased')
+    .lt('purchased_at', threshold);
 
   const [{ data: items, error }, { data: prefs }] = await Promise.all([
     supabase.from('list_items').select('*').order('created_at', { ascending: true }),
