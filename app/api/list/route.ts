@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/lib/matching/normalize';
+import { closeTask } from '@/lib/todoist/client';
 
 /**
  * GET /api/list
@@ -14,14 +15,21 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Auto-reset staples that were purchased more than STAPLE_RESET_HOURS ago
-  const threshold = new Date(Date.now() - STAPLE_RESET_HOURS * 60 * 60 * 1000).toISOString();
+  // Staples always reset to 'pending' on load — they should be ready for the next trip.
   await supabase
     .from('list_items')
     .update({ status: 'pending', purchased_at: null })
     .eq('persistent', true)
+    .in('status', ['purchased', 'carted']);
+
+  // Clean up non-persistent purchased items older than STAPLE_RESET_HOURS
+  const threshold = new Date(Date.now() - STAPLE_RESET_HOURS * 60 * 60 * 1000).toISOString();
+  await supabase
+    .from('list_items')
+    .delete()
+    .eq('persistent', false)
     .eq('status', 'purchased')
-    .lt('purchased_at', threshold);
+    .or(`purchased_at.lt.${threshold},purchased_at.is.null`);
 
   const [{ data: items, error }, { data: prefs }] = await Promise.all([
     supabase.from('list_items').select('*').order('created_at', { ascending: true }),
@@ -167,6 +175,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Auto-manage purchased_at when status transitions
+    if (updates.status === 'purchased' && !updates.purchased_at) {
+      updates.purchased_at = new Date().toISOString();
+    } else if (updates.status === 'pending') {
+      updates.purchased_at = null;
+    }
+
     const { data: updated, error } = await supabase
       .from('list_items')
       .update(updates)
@@ -177,9 +192,17 @@ export async function PATCH(request: NextRequest) {
       throw error;
     }
 
+    // Close Todoist task when an item is marked as purchased
+    const updatedItem = updated?.[0];
+    if (updatedItem?.status === 'purchased' && updatedItem?.todoist_task_id) {
+      closeTask(updatedItem.todoist_task_id).catch((err) =>
+        console.error(`Failed to close Todoist task ${updatedItem.todoist_task_id}:`, err)
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      item: updated?.[0] || null,
+      item: updatedItem || null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -218,8 +241,28 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Close Todoist tasks for items being removed
+    const { data: itemsToRemove } = await supabase
+      .from('list_items')
+      .select('id, todoist_task_id')
+      .in('id', idsToRemove);
+
     const { error } = await supabase.from('list_items').delete().in('id', idsToRemove);
     if (error) throw error;
+
+    // Fire-and-forget: close corresponding Todoist tasks
+    if (itemsToRemove) {
+      const closePromises = itemsToRemove
+        .filter((i) => i.todoist_task_id)
+        .map(async (item) => {
+          try {
+            await closeTask(item.todoist_task_id!);
+          } catch (err) {
+            console.error(`Failed to close Todoist task ${item.todoist_task_id}:`, err);
+          }
+        });
+      await Promise.allSettled(closePromises);
+    }
 
     return NextResponse.json({
       success: true,
