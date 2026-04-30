@@ -15,15 +15,15 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Staples always reset to 'pending' on load — they should be ready for the next trip.
+  const threshold = new Date(Date.now() - STAPLE_RESET_HOURS * 60 * 60 * 1000).toISOString();
+
+  // Staples older than STAPLE_RESET_HOURS reset to 'pending' — they should be ready for the next trip.
   await supabase
     .from('list_items')
     .update({ status: 'pending', purchased_at: null })
     .eq('persistent', true)
-    .in('status', ['purchased', 'carted']);
-
-  // Clean up non-persistent purchased items older than STAPLE_RESET_HOURS
-  const threshold = new Date(Date.now() - STAPLE_RESET_HOURS * 60 * 60 * 1000).toISOString();
+    .in('status', ['purchased', 'carted'])
+    .or(`purchased_at.lt.${threshold},purchased_at.is.null`);
   await supabase
     .from('list_items')
     .delete()
@@ -176,7 +176,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Auto-manage purchased_at when status transitions
-    if (updates.status === 'purchased' && !updates.purchased_at) {
+    if ((updates.status === 'purchased' || updates.status === 'carted') && !updates.purchased_at) {
       updates.purchased_at = new Date().toISOString();
     } else if (updates.status === 'pending') {
       updates.purchased_at = null;

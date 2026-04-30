@@ -485,6 +485,7 @@ export default function Home() {
                   onQuantityChange={handleQuantityChange}
                   onSkip={handleSkip}
                   onRename={handleRename}
+                  onSearch={handleSearch}
                 />
               ))}
             </DepartmentSection>
@@ -520,6 +521,7 @@ export default function Home() {
                       onQuantityChange={handleQuantityChange}
                       onSkip={handleSkip}
                       onRename={handleRename}
+                      onSearch={handleSearch}
                     />
                   ))}
                 </DepartmentSection>
@@ -545,6 +547,7 @@ export default function Home() {
                   onQuantityChange={handleQuantityChange}
                   onSkip={handleSkip}
                   onRename={handleRename}
+                  onSearch={handleSearch}
                 />
               ))}
             </DepartmentSection>

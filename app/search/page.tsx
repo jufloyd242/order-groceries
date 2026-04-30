@@ -28,6 +28,7 @@ export default function SearchPage() {
   const [zipCode, setZipCode] = useState('80516');
   const { addItem } = useCart();
   const [itemRawText, setItemRawText] = useState('');
+  const [itemQuantity, setItemQuantity] = useState(1);
   const [itemPreference, setItemPreference] = useState<{ preferred_upc?: string | null; preferred_asin?: string | null; display_name?: string } | null>(null);
   const [historicalAverages, setHistoricalAverages] = useState<Record<string, number>>({});
   // Selected product keys for cart (checkbox state)
@@ -65,10 +66,11 @@ export default function SearchPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          const found = (d.items as Array<{ id: string; raw_text: string; preference?: { display_name: string } | null }>)
+          const found = (d.items as Array<{ id: string; raw_text: string; quantity?: number; preference?: { display_name: string } | null }>)
             ?.find((i) => i.id === itemId);
           if (found) {
             setItemRawText(found.raw_text);
+            setItemQuantity(found.quantity ?? 1);
             if (found.preference) setItemPreference(found.preference);
           }
         }
@@ -214,7 +216,7 @@ export default function SearchPage() {
     const allResults = [...krogerResults, ...amazonResults];
     const toAdd = allResults.filter((p) => selectedIds.has(`${p.store}-${p.id}`));
     for (const product of toAdd) {
-      addItem(product, 1, itemId || undefined);
+      addItem(product, itemQuantity, itemId || undefined);
     }
     setAddedIds((prev) => {
       const next = new Set(prev);
@@ -296,8 +298,10 @@ export default function SearchPage() {
 
     const affectedListItemIds: string[] = [];
     for (const [listItemId, products] of byItem.entries()) {
+      const batchItem = batchItems.find((i) => i.id === listItemId);
+      const batchQty = (batchItem as any)?.quantity ?? 1;
       for (const product of products) {
-        addItem(product, 1, listItemId);
+        addItem(product, batchQty, listItemId);
       }
       // Save preference if a radio is remembered for this item
       const preferredKey = batchRememberedKeys.get(listItemId);
