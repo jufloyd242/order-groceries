@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Smart Grocery Optimizer
 
-## Getting Started
+Compare grocery prices between King Soopers and Amazon in real-time. Syncs a Todoist shopping list, searches both stores in parallel, fuzzy-matches products, and lets you push items to the winning store's cart with one click.
 
-First, run the development server:
+## Monorepo Structure
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+groceries/
+├── app/                    # Next.js 16 web app (routes + API)
+│   ├── api/                #   REST API routes (all business logic)
+│   ├── compare/            #   Price comparison dashboard
+│   ├── pick/[itemId]/      #   Product picker per item
+│   ├── search/             #   Manual product search
+│   ├── settings/           #   Location config & Kroger login
+│   └── login/              #   Supabase auth
+├── components/             # React UI components
+├── ios/                    # Native iOS app (SwiftUI)
+│   └── SmartGroceryOptimizer/
+├── lib/                    # Shared server-side logic
+│   ├── amazon/             #   SerpApi Amazon search
+│   ├── cart/               #   Cart context & store services
+│   ├── comparison/         #   Price engine & unit conversion
+│   ├── kroger/             #   Kroger products, auth, OAuth, cart
+│   ├── matching/           #   Normalize text, fuzzy match (Fuse.js)
+│   ├── supabase/           #   DB clients (browser + server)
+│   └── todoist/            #   Todoist API client
+├── types/                  # Shared TypeScript interfaces
+│   └── index.ts            #   All types (mirrored as Swift Codable structs in ios/)
+├── supabase/               # DB schema & migrations
+├── tests/                  # E2E & manual test checklists
+├── .env.local              # Credentials (git-ignored)
+└── IMPLEMENTATION_PLAN.md  # Master project plan
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Architecture
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+┌──────────────────────────────────────────────┐
+│  Clients                                     │
+│  ┌─────────────┐    ┌─────────────────────┐  │
+│  │ Web (Next.js│    │ iOS (SwiftUI)       │  │
+│  │ React 19)   │    │ URLSession + Supabase│ │
+│  └──────┬──────┘    └──────────┬──────────┘  │
+└─────────┼──────────────────────┼─────────────┘
+          │      HTTP / JSON     │
+          ▼                      ▼
+┌──────────────────────────────────────────────┐
+│  API Layer  (/app/api/*)                     │
+│  Next.js 16 Route Handlers                   │
+│  Auth: Supabase JWT (middleware.ts)          │
+│  RLS: Row-level security per user            │
+└──────────┬───────────────────────────────────┘
+           │
+     ┌─────┴──────┐
+     ▼            ▼
+┌──────────┐  ┌──────────────────┐
+│ Supabase │  │ External APIs    │
+│ (Postgres│  │ ├─ Kroger        │
+│  + Auth) │  │ ├─ Amazon/SerpApi│
+└──────────┘  │ └─ Todoist       │
+              └──────────────────┘
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Both clients call the same `/api/*` routes — all business logic, auth, and data access live on the server.
 
-## Learn More
+## Quick Start
 
-To learn more about Next.js, take a look at the following resources:
+### Web App
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev          # http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### iOS App
 
-## Deploy on Vercel
+Open `ios/SmartGroceryOptimizer.xcodeproj` in Xcode 16+. Set the scheme to a simulator or device, then run.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> **Local network**: The simulator uses `localhost:3000`. A physical device must use your Mac's local IP (e.g. `192.168.x.x:3000`). The iOS app auto-detects this via a build configuration toggle.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Environment
+
+Copy `.env.local.example` (or see `.github/copilot-instructions.md`) and fill in:
+
+| Variable | Source |
+|----------|--------|
+| `TODOIST_API_TOKEN` | Todoist Settings → Integrations → Developer |
+| `KROGER_CLIENT_ID` / `SECRET` | developer.kroger.com |
+| `SERPAPI_API_KEY` | serpapi.com |
+| `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` | Supabase project settings |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project settings (server-only) |
+
+Restart the dev server after changes.
+
+## API Overview
+
+All routes require a valid Supabase JWT. Responses use `{ success: boolean, error?: string, ...data }`.
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/list` | GET / POST | Shopping list CRUD |
+| `/api/compare` | GET | Multi-store price comparison |
+| `/api/search` | GET | Manual product search |
+| `/api/preferences` | GET / POST | Saved product mappings |
+| `/api/settings` | GET / POST | App configuration |
+| `/api/cart/submit` | POST | Push cart to Kroger |
+| `/api/kroger/products` | GET | Search King Soopers |
+| `/api/kroger/locations` | GET | Find stores by zip |
+| `/api/kroger/auth/*` | GET | OAuth2 flow for cart access |
+| `/api/amazon/products` | GET | Search Amazon (SerpApi) |
+| `/api/todoist/sync` | GET | Pull Todoist grocery tasks |
+| `/api/abbreviations` | GET / POST | Abbreviation dictionary |
+
+See [`.github/copilot-instructions.md`](.github/copilot-instructions.md) for full request/response contracts.
+
+## Development
+
+```bash
+npm run lint         # ESLint + type check
+npx tsc --noEmit     # TypeScript strict mode
+npm run build        # Production build
+```
+
+## Documentation
+
+- [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — Master plan & phase tracking
+- [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — Detailed API contracts, code conventions, architecture

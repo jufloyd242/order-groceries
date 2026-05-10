@@ -1,0 +1,10 @@
+// SGO.xcconfig — Copy this file to SGO.xcconfig and fill in real values.
+// SGO.xcconfig is git-ignored. This example file is safe to commit.
+
+// Supabase (from supabase.com → Project Settings → API)
+SUPABASE_URL = https://your-project.supabase.co
+SUPABASE_ANON_KEY = your-anon-key-here
+
+// Local network: Mac's IP for physical device testing
+// Run: ipconfig getifaddr en0
+API_HOST = 192.168.0.33

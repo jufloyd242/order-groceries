@@ -42,6 +42,16 @@ next-env.d.ts
 credentials-groceries.json
 .gitignore
 grocery-app.env.local
+
+# iOS secrets — contains Supabase credentials
+ios/SGO.xcconfig
+
+# Xcode generated / derived
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/DerivedData/
+ios/.build/
+
 LANDING_REDESIGN_BLUEPRINT.md
 design/browse_items/code.html
 design/browse_items/screen.png
