@@ -52,6 +52,24 @@ ios/*.xcodeproj/xcuserdata/
 ios/DerivedData/
 ios/.build/
 
+# Xcode UI/user state
+*.xcuserstate
+*.xcscmblueprint
+*.xcuserdatad/
+*.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+
+# App icon PNGs (if not source)
+ios/SmartGroceryOptimizer/SmartGroceryOptimizer/SmartGroceryOptimizer/Assets.xcassets/AppIcon.appiconset/*.png
+
+# Test helpers (secrets)
+tests/helpers/auth.ts
+
+# Local-only unit tests (optional)
+tests/unit/
+
+# Design artifacts (optional)
+design/weekly_groceries_list/
+
 LANDING_REDESIGN_BLUEPRINT.md
 design/browse_items/code.html
 design/browse_items/screen.png

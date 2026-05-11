@@ -16,7 +16,7 @@ struct GroceryItemView: View {
     var onTogglePersistent: ((String) -> Void)?
     var onQuantityChange: ((String, Int) -> Void)?
     var onSkip: ((String) -> Void)?
-    var onSearch: ((String, String) -> Void)?
+    var onSearch: ((String) -> Void)?
 
     private var isCarted: Bool { item.status == .carted }
     private var isPurchased: Bool { item.status == .purchased }
@@ -40,7 +40,7 @@ struct GroceryItemView: View {
             // ── Thumbnail ──
             thumbnailView
 
-            // ── Text block ──
+            // ── Text block (tap to search) ──
             VStack(alignment: .leading, spacing: 2) {
                 nameRow
                 if mappingDiffers {
@@ -48,6 +48,10 @@ struct GroceryItemView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isLocked { onSearch?(item.id) }
+            }
 
             Spacer(minLength: 4)
 
@@ -83,6 +87,13 @@ struct GroceryItemView: View {
         }
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
             if !isLocked {
+                Button {
+                    onSearch?(item.id)
+                } label: {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .tint(.blue)
+
                 Button {
                     onTogglePersistent?(item.id)
                 } label: {

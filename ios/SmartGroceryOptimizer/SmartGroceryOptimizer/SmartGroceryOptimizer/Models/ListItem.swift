@@ -77,6 +77,17 @@ struct UIListItem: Codable, Identifiable, Equatable {
         case purchasedAt = "purchased_at"
         case persistent, department, preference
     }
+
+    /// Return a copy of this item with a different status (for optimistic UI updates).
+    func withStatus(_ newStatus: ItemStatus) -> UIListItem {
+        UIListItem(
+            id: id, rawText: rawText, normalizedText: normalizedText,
+            quantity: quantity, unit: unit, source: source,
+            todoistTaskId: todoistTaskId, preferenceId: preferenceId,
+            status: newStatus, createdAt: createdAt, purchasedAt: purchasedAt,
+            persistent: persistent, department: department, preference: preference
+        )
+    }
 }
 
 /// POST body for adding items to the list

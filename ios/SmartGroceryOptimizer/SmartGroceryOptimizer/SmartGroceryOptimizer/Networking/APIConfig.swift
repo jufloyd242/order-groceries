@@ -23,23 +23,37 @@ enum APIConfig {
         #endif
     }
 
-    /// Supabase project URL — injected from SGO.xcconfig → Info.plist at build time
-    static var supabaseURL: URL {
-        guard let urlString = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
-              !urlString.isEmpty,
-              let url = URL(string: urlString) else {
-            fatalError("SUPABASE_URL missing from Info.plist. Copy SGO.xcconfig.example → SGO.xcconfig and fill in values.")
+    /// Supabase project URL — injected from SGO.xcconfig → Info.plist at build time.
+    /// The plist stores only the host (no scheme) because xcconfig treats `//` as a
+    /// comment, which would strip the `https://` prefix. This getter prepends the scheme.
+    /// Returns nil if the xcconfig hasn't been filled in yet.
+    static var supabaseURL: URL? {
+        guard let host = Bundle.main.infoDictionary?["SUPABASE_HOST"] as? String,
+              !host.isEmpty,
+              !host.hasPrefix("your-"),
+              !host.hasPrefix("$("),
+              let url = URL(string: "https://\(host)"),
+              url.host != nil else {
+            return nil
         }
         return url
     }
 
-    /// Supabase anon key — injected from SGO.xcconfig → Info.plist at build time
-    static var supabaseAnonKey: String {
+    /// Supabase anon key — injected from SGO.xcconfig → Info.plist at build time.
+    /// Returns nil if the xcconfig hasn't been filled in yet.
+    static var supabaseAnonKey: String? {
         guard let key = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String,
-              !key.isEmpty else {
-            fatalError("SUPABASE_ANON_KEY missing from Info.plist. Copy SGO.xcconfig.example → SGO.xcconfig and fill in values.")
+              !key.isEmpty,
+              !key.hasPrefix("your-"),
+              !key.hasPrefix("$(") else {
+            return nil
         }
         return key
+    }
+
+    /// True when both Supabase credentials are present and non-placeholder.
+    static var isConfigured: Bool {
+        supabaseURL != nil && supabaseAnonKey != nil
     }
 
     /// Build a full URL for an API endpoint

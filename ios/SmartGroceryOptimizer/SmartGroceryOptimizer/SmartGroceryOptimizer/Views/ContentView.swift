@@ -8,9 +8,7 @@ struct ContentView: View {
             if authManager.isLoading {
                 splashView
             } else if authManager.isAuthenticated {
-                // Stub — will be replaced with TabView + real screens
-                Text("✓ Authenticated as \(authManager.userEmail ?? "user")")
-                    .foregroundStyle(Color.onSurface)
+                GroceryListView()
             } else {
                 LoginView()
             }

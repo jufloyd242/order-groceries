@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createRequestClient } from '@/lib/supabase/server';
 import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/lib/matching/normalize';
 import { closeTask } from '@/lib/todoist/client';
 
@@ -10,9 +10,8 @@ import { closeTask } from '@/lib/todoist/client';
 // Staples purchased more than this many hours ago are automatically reset to 'pending'
 const STAPLE_RESET_HOURS = 24;
 
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export async function GET(request: NextRequest) {
+  const { supabase, user } = await createRequestClient(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const threshold = new Date(Date.now() - STAPLE_RESET_HOURS * 60 * 60 * 1000).toISOString();
@@ -74,8 +73,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
     const newItems = body.items || [body];
@@ -220,8 +218,7 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
 
@@ -247,7 +244,10 @@ export async function DELETE(request: NextRequest) {
       .select('id, todoist_task_id')
       .in('id', idsToRemove);
 
-    const { error } = await supabase.from('list_items').delete().in('id', idsToRemove);
+    const { error, count } = await supabase
+      .from('list_items')
+      .delete({ count: 'exact' })
+      .in('id', idsToRemove);
     if (error) throw error;
 
     // Fire-and-forget: close corresponding Todoist tasks
@@ -266,7 +266,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      removed: idsToRemove.length,
+      removed: count ?? 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

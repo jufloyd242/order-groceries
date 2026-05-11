@@ -3,6 +3,12 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthManager
     @State private var errorMessage: String?
+    #if targetEnvironment(simulator)
+    @State private var showDevLogin = false
+    @State private var devToken = ""
+    #endif
+
+    private var isMisconfigured: Bool { !APIConfig.isConfigured }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,6 +37,24 @@ struct LoginView: View {
             }
             .padding(.bottom, 48)
 
+            // ── Config warning (shown when SGO.xcconfig isn't filled in) ──
+            if isMisconfigured {
+                VStack(spacing: 8) {
+                    Label("Supabase credentials missing", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote.bold())
+                        .foregroundStyle(Color.error)
+                    Text("Open ios/SGO.xcconfig and fill in your SUPABASE_URL and SUPABASE_ANON_KEY, then rebuild.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color.onSurfaceVariant)
+                }
+                .padding(12)
+                .background(Color.errorContainer)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
+                .padding(.horizontal, 32)
+                .padding(.bottom, 16)
+            }
+
             // ── Sign In Button ──
             Button {
                 Task { await signIn() }
@@ -45,11 +69,11 @@ struct LoginView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Color.primary)
+                .background(isMisconfigured ? Color.outline : Color.primary)
                 .foregroundStyle(Color.onPrimary)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.md))
             }
-            .disabled(authManager.isLoading)
+            .disabled(authManager.isLoading || isMisconfigured)
             .padding(.horizontal, 32)
             .overlay {
                 if authManager.isLoading {
@@ -80,9 +104,50 @@ struct LoginView: View {
                 .font(.caption)
                 .foregroundStyle(Color.outline)
                 .padding(.bottom, 24)
+
+            #if targetEnvironment(simulator)
+            Button("Dev: Paste Token") { showDevLogin = true }
+                .font(.caption)
+                .foregroundStyle(Color.outline)
+                .padding(.bottom, 8)
+            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.surface)
+        #if targetEnvironment(simulator)
+        .sheet(isPresented: $showDevLogin) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Paste your Supabase access_token below.")
+                        .font(.subheadline)
+                    Text("1. Open http://localhost:3000 in Chrome\n2. Sign in with Google\n3. DevTools → Application → Local Storage\n4. Find sb-kxkynihljfakhundqmed-auth-token\n5. Copy the access_token value (starts with eyJ)")
+                        .font(.caption)
+                        .foregroundStyle(Color.onSurfaceVariant)
+                    TextEditor(text: $devToken)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 140)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.outline))
+                    Button("Apply Token & Sign In") {
+                        let t = devToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !t.isEmpty else { return }
+                        authManager.setSessionFromToken(t)
+                        showDevLogin = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(devToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Spacer()
+                }
+                .padding()
+                .navigationTitle("Dev Login (Simulator)")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showDevLogin = false }
+                    }
+                }
+            }
+        }
+        #endif
     }
 
     // MARK: - Actions
@@ -94,7 +159,7 @@ struct LoginView: View {
         guard let windowScene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive }),
-              let window = windowScene.windows.first(where: { $0.isKeyWindow }) else {
+              let window = windowScene.keyWindow else {
             errorMessage = "Could not find a window to present sign-in."
             return
         }

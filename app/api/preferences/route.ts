@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createRequestClient } from '@/lib/supabase/server';
 import { NewProductPreference } from '@/types';
 
 /**
  * GET /api/preferences
  * Returns all saved product preferences.
  */
-export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export async function GET(request: NextRequest) {
+  const { supabase, user } = await createRequestClient(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { data: preferences, error } = await supabase
     .from('product_preferences')
@@ -33,8 +32,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body: NewProductPreference = await request.json();
 

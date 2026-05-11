@@ -90,6 +90,62 @@ final class APIClient {
         return try await perform(request)
     }
 
+    // MARK: - PATCH
+
+    /// Perform a PATCH request with no body
+    func patch<T: Decodable>(_ path: String) async throws -> T {
+        let url = APIConfig.url(for: path)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        injectAuthHeaders(&request)
+
+        return try await perform(request)
+    }
+
+    /// Perform a PATCH request with a JSON body
+    func patch<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
+        let url = APIConfig.url(for: path)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(body)
+        injectAuthHeaders(&request)
+
+        return try await perform(request)
+    }
+
+    // MARK: - DELETE
+
+    /// Perform a DELETE request
+    func delete<T: Decodable>(_ path: String) async throws -> T {
+        let url = APIConfig.url(for: path)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        injectAuthHeaders(&request)
+
+        return try await perform(request)
+    }
+
+    /// Perform a DELETE request with a JSON body (for endpoints that need it)
+    func delete<Body: Encodable, T: Decodable>(_ path: String, body: Body) async throws -> T {
+        let url = APIConfig.url(for: path)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(body)
+        injectAuthHeaders(&request)
+
+        return try await perform(request)
+    }
+
     // MARK: - Core Request Execution
 
     private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
@@ -160,7 +216,8 @@ final class APIClient {
             cookies.forEach { cookieStorage.deleteCookie($0) }
         }
         // Also clear Supabase cookies
-        if let cookies = cookieStorage.cookies(for: APIConfig.supabaseURL) {
+        if let supabaseURL = APIConfig.supabaseURL,
+           let cookies = cookieStorage.cookies(for: supabaseURL) {
             cookies.forEach { cookieStorage.deleteCookie($0) }
         }
     }

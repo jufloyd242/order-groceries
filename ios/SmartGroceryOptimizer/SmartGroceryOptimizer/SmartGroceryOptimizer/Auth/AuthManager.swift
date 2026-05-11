@@ -1,5 +1,6 @@
 import Foundation
 import AuthenticationServices
+import Combine
 
 // MARK: - Auth Manager
 // Wraps Supabase authentication for the iOS app.
@@ -23,8 +24,28 @@ final class AuthManager: ObservableObject {
     private let refreshTokenKey = "sgo_refresh_token"
     private let userEmailKey = "sgo_user_email"
 
+    // Retained during ASWebAuthenticationSession flow.
+    // ASWebAuthenticationSession.presentationContextProvider is a weak var,
+    // so both objects must be held strongly or they are immediately deallocated.
+    private var authSession: ASWebAuthenticationSession?
+    private var authSessionContext: PresentationContextProvider?
+
     private init() {
         restoreSession()
+    }
+
+    // MARK: - Dev Bypass (simulator only)
+
+    /// Directly inject a Supabase access token — used in the simulator to bypass
+    /// the Google OAuth web form (which the iOS Form Assistant toolbar blocks).
+    /// Get the token from the web app after signing in:
+    ///   Chrome DevTools → Application → Local Storage → your Supabase URL
+    ///   → key starting with "sb-" → copy the access_token value (starts with eyJ)
+    func setSessionFromToken(_ token: String) {
+        accessToken = token
+        isAuthenticated = true
+        KeychainHelper.save(key: tokenKey, value: token)
+        Task { await fetchUserInfo() }
     }
 
     // MARK: - Google OAuth Sign In
@@ -36,11 +57,19 @@ final class AuthManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        let supabaseURL = APIConfig.supabaseURL.absoluteString
-        let callbackURL = APIConfig.url(for: "/api/auth/callback").absoluteString
+        guard let supabaseURL = APIConfig.supabaseURL else {
+            throw APIError.serverError(message: "Supabase URL not configured. Fill in ios/SGO.xcconfig with your project credentials.")
+        }
 
-        // Build the Supabase OAuth URL (same as the web app's signInWithOAuth)
-        var components = URLComponents(string: "\(supabaseURL)/auth/v1/authorize")!
+        // redirect_to MUST use the app's custom URL scheme, not http://localhost.
+        // ASWebAuthenticationSession intercepts the redirect only when it matches callbackURLScheme.
+        // Using http://localhost causes Supabase to redirect the embedded browser there, which
+        // opens the Next.js /api/auth/callback page and shows a second Supabase login form.
+        // This URI must also be whitelisted in Supabase → Auth → URL Configuration → Redirect URLs.
+        let callbackURL = "smartgroceryoptimizer://auth/callback"
+
+        // Build the Supabase OAuth URL
+        var components = URLComponents(string: "\(supabaseURL.absoluteString)/auth/v1/authorize")!
         components.queryItems = [
             URLQueryItem(name: "provider", value: "google"),
             URLQueryItem(name: "redirect_to", value: callbackURL),
@@ -51,6 +80,9 @@ final class AuthManager: ObservableObject {
         }
 
         // Open the OAuth flow in a system browser sheet
+        let contextProvider = PresentationContextProvider(anchor: presentationAnchor)
+        authSessionContext = contextProvider // strong reference — presentationContextProvider is weak
+
         let resultURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             let session = ASWebAuthenticationSession(
                 url: authURL,
@@ -64,10 +96,19 @@ final class AuthManager: ObservableObject {
                     continuation.resume(throwing: APIError.unauthenticated)
                 }
             }
-            session.presentationContextProvider = PresentationContextProvider(anchor: presentationAnchor)
-            session.prefersEphemeralWebBrowserSession = false // Keep cookies
+            session.presentationContextProvider = contextProvider
+            // Use shared Safari session (prefersEphemeralWebBrowserSession = false) so existing
+            // Google account cookies from Safari are available. This shows the "Choose an account"
+            // picker if the user is already signed into Google in Safari — bypassing the email/password
+            // form and the iOS Form Assistant toolbar that was intercepting "Next".
+            // The original double-login bug was caused by redirect_to pointing to http://localhost
+            // (now fixed to smartgroceryoptimizer://auth/callback), NOT by this setting.
+            session.prefersEphemeralWebBrowserSession = false
+            authSession = session // strong reference — keeps session alive until callback fires
             session.start()
         }
+        authSession = nil
+        authSessionContext = nil
 
         // After OAuth completes, extract tokens from the callback URL
         // Supabase redirects with fragment: #access_token=...&refresh_token=...&...

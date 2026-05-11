@@ -3,8 +3,10 @@
 <plist version="1.0">
 <dict>
     <!-- Supabase credentials — injected from SGO.xcconfig at build time -->
-    <key>SUPABASE_URL</key>
-    <string>$(SUPABASE_URL)</string>
+    <!-- NOTE: SUPABASE_HOST is just the hostname (no https://) to avoid xcconfig
+         treating // as a comment. APIConfig.swift prepends the scheme. -->
+    <key>SUPABASE_HOST</key>
+    <string>$(SUPABASE_HOST)</string>
     <key>SUPABASE_ANON_KEY</key>
     <string>$(SUPABASE_ANON_KEY)</string>
 
@@ -29,12 +31,21 @@
     <!-- Allow HTTP to localhost (dev server) and local network IP -->
     <key>NSAppTransportSecurity</key>
     <dict>
+        <!-- Allows Bonjour / mDNS / link-local HTTP (covers simulator localhost) -->
         <key>NSAllowsLocalNetworking</key>
         <true/>
-        <!-- Allows http:// to any host — lock this down in production -->
         <key>NSExceptionDomains</key>
         <dict>
+            <!-- Dev server on simulator -->
             <key>localhost</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSIncludesSubdomains</key>
+                <false/>
+            </dict>
+            <!-- Dev server on physical device (API_HOST from SGO.xcconfig) -->
+            <key>192.168.0.33</key>
             <dict>
                 <key>NSExceptionAllowsInsecureHTTPLoads</key>
                 <true/>
@@ -74,8 +85,6 @@
                 <dict>
                     <key>UISceneConfigurationName</key>
                     <string>Default Configuration</string>
-                    <key>UISceneDelegateClassName</key>
-                    <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
                 </dict>
             </array>
         </dict>

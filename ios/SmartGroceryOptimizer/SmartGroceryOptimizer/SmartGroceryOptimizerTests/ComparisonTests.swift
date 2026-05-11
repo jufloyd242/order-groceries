@@ -89,7 +89,7 @@ final class ComparisonTests: XCTestCase {
         }
         """.data(using: .utf8)!
 
-        let result = try JSONDecoder.sgo.decode(ComparisonResult.self, from: json)
+        let result = try JSONDecoder.sgo.decode(SmartGroceryOptimizer.ComparisonResult.self, from: json)
 
         XCTAssertEqual(result.item.id, "item-1")
         XCTAssertEqual(result.item.status, .compared)
@@ -120,7 +120,7 @@ final class ComparisonTests: XCTestCase {
         }
         """.data(using: .utf8)!
 
-        let summary = try JSONDecoder.sgo.decode(ComparisonSummary.self, from: json)
+        let summary = try JSONDecoder.sgo.decode(SmartGroceryOptimizer.ComparisonSummary.self, from: json)
 
         XCTAssertEqual(summary.totalItems, 8)
         XCTAssertEqual(summary.krogerWins, 5)
@@ -162,7 +162,7 @@ final class ComparisonTests: XCTestCase {
         }
         """.data(using: .utf8)!
 
-        let result = try JSONDecoder.sgo.decode(ComparisonResult.self, from: json)
+        let result = try JSONDecoder.sgo.decode(SmartGroceryOptimizer.ComparisonResult.self, from: json)
 
         XCTAssertEqual(result.winner, .tie)
         XCTAssertEqual(result.savings, 0)
