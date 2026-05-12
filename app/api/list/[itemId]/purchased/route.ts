@@ -23,17 +23,16 @@ export async function PATCH(
     }
 
     // Parse optional body for quantity update
-    let body = {};
+    let body: Record<string, unknown> = {};
     try {
       body = await request.json();
     } catch {
       // No body is OK
     }
 
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       status: 'purchased',
       purchased_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
 
     // If quantity is in body, update it
