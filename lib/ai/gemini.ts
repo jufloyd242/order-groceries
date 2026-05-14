@@ -255,3 +255,125 @@ export async function applySemanticMatching(
 
   return updated;
 }
+
+// ---------------------------------------------------------------------------
+// Grocery Item Text Parser
+// Parses raw item text like "2 plums" or "1/2 cup flour" into structured data.
+// Used as a fallback when the regex normalizer cannot confidently strip quantity
+// noise from the product identity (e.g. unusual formats like "2x plums").
+// ---------------------------------------------------------------------------
+
+const PARSE_TIMEOUT_MS = 5_000;
+
+export interface ParsedItemResult {
+  /** Numeric quantity to buy; defaults to 1 */
+  quantity: number;
+  /** Singular product identity with ALL numbers and units stripped (e.g. "plum", "flour") */
+  clean_name: string;
+  /** Recipe/volume unit (e.g. "cup", "oz", "lb"); null for count items */
+  unit: string | null;
+}
+
+/**
+ * Use Gemini to parse raw grocery item text into structured { quantity, clean_name, unit }.
+ *
+ * CRITICAL rules baked into the prompt:
+ * - clean_name must be singular and free of all numbers/units
+ * - Defaults to quantity=1 when no amount is specified
+ *
+ * Returns null on any failure — callers must always have a regex fallback.
+ */
+export async function parseItemText(rawText: string): Promise<ParsedItemResult | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !rawText.trim()) return null;
+
+  const systemPrompt = `You are a grocery list parser. Convert raw grocery item text into structured JSON.
+
+CRITICAL: The clean_name must be the singular identity of the product with ALL numbers and units removed.
+
+Rules:
+1. Strip ALL leading numbers, multipliers (x, ×), and separators (-, +) from clean_name.
+2. Singularize the clean_name — e.g. "plums" → "plum", "bananas" → "banana", "tomatoes" → "tomato".
+3. Strip cooking units (cup, tbsp, tsp, oz, lb, g, kg, etc.) from clean_name.
+4. Remove filler words: "of", "a", "an" from the start of clean_name.
+5. If no quantity is specified, default quantity to 1.
+6. unit is null for discrete count items; use the measurement unit string for recipe/volume items.
+7. For measurements, quantity should be 1 (buy 1 package that satisfies the amount), NOT the fraction.
+
+Examples:
+- "2 plums"        → {"quantity": 2, "clean_name": "plum",         "unit": null}
+- "2x plums"       → {"quantity": 2, "clean_name": "plum",         "unit": null}
+- "1/2 cup flour"  → {"quantity": 1, "clean_name": "flour",        "unit": "cup"}
+- "3 cans of beans"→ {"quantity": 3, "clean_name": "bean",         "unit": null}
+- "500g chicken"   → {"quantity": 1, "clean_name": "chicken",      "unit": "g"}
+- "milk"           → {"quantity": 1, "clean_name": "milk",         "unit": null}
+- "peanut butter"  → {"quantity": 1, "clean_name": "peanut butter","unit": null}
+- "2 lbs ground beef" → {"quantity": 1, "clean_name": "ground beef", "unit": "lb"}
+
+Output ONLY a JSON object with exactly these three fields: quantity, clean_name, unit.`;
+
+  try {
+    const fetchResult = await Promise.race([
+      fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: rawText.trim() },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.0,
+          max_tokens: 80,
+        }),
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('parseItemText timeout')), PARSE_TIMEOUT_MS),
+      ),
+    ]);
+
+    if (!fetchResult.ok) {
+      console.warn(`[gemini:parseItemText] HTTP ${fetchResult.status}`);
+      return null;
+    }
+
+    const data = (await fetchResult.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const raw = data.choices?.[0]?.message?.content;
+    if (!raw) return null;
+
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed: unknown = JSON.parse(cleaned);
+
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'clean_name' in parsed &&
+      typeof (parsed as Record<string, unknown>).clean_name === 'string'
+    ) {
+      const obj = parsed as Record<string, unknown>;
+      const clean_name = String(obj.clean_name).trim().toLowerCase();
+      if (!clean_name) return null;
+
+      const quantity = obj.quantity != null && !isNaN(Number(obj.quantity))
+        ? Math.max(1, Math.round(Number(obj.quantity)))
+        : 1;
+
+      const unit =
+        obj.unit != null && obj.unit !== 'null' && typeof obj.unit === 'string' && obj.unit.trim()
+          ? String(obj.unit).trim().toLowerCase()
+          : null;
+
+      return { quantity, clean_name, unit };
+    }
+    return null;
+  } catch (err) {
+    console.warn('[gemini:parseItemText] failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}

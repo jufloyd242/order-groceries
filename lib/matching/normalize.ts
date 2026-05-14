@@ -95,9 +95,11 @@ const MEASUREMENT_TO_BASE: Record<string, { factor: number; baseUnit: 'oz' | 'fl
 };
 
 /**
- * Simple quantity pattern for bare numbers (e.g., "2 milk" → qty=2)
+ * Simple quantity pattern for bare numbers.
+ * Handles: "2 plums", "2x plums", "2- plums", "2× plums" → qty=2, name="plums"
+ * Requires the digit to be followed by a separator (x, ×, -) or whitespace before the name.
  */
-const BARE_QUANTITY_PATTERN = /^(\d+)\s+/;
+const BARE_QUANTITY_PATTERN = /^(\d+)(?:\s*[x×\-]\s*|\s+)/
 
 /**
  * Singularize a word using common English rules.
@@ -105,8 +107,8 @@ const BARE_QUANTITY_PATTERN = /^(\d+)\s+/;
  */
 function singularize(word: string): string {
   const lower = word.toLowerCase();
-  // Don't singularize short words or words that are already singular-looking
-  if (lower.length <= 2) return word;
+  // Don't singularize short words (≤3 chars, e.g. "gas", "bus") — too risky
+  if (lower.length <= 3) return word;
   // Irregular plurals
   const irregulars: Record<string, string> = {
     'tomatoes': 'tomato', 'potatoes': 'potato', 'cherries': 'cherry',
@@ -203,8 +205,10 @@ export function normalizeItem(
     .replace(/\s+/g, ' ')    // collapse whitespace
     .trim();
 
-  // Step 5: Singularize the last word when quantity > 1 (e.g., "plums" → "plum")
-  if (quantity !== null && quantity > 1) {
+  // Step 5: Always singularize the last word — ensures clean product identity regardless of
+  // whether the user typed "plums", "2 plums", "1/2 cup milks", etc. The singularize()
+  // function is conservative: short words and non-plural endings are left untouched.
+  {
     const words = normalized.split(' ');
     if (words.length > 0) {
       words[words.length - 1] = singularize(words[words.length - 1]);

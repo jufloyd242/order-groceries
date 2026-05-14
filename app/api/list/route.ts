@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createRequestClient } from '@/lib/supabase/server';
 import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/lib/matching/normalize';
+import { parseItemText } from '@/lib/ai/gemini';
 import { closeTask } from '@/lib/todoist/client';
 
 /**
@@ -108,9 +109,28 @@ export async function POST(request: NextRequest) {
       // Parse quantity, unit, and normalized name from raw text
       const normalized = normalizeItem(trimmed, abbrevMap);
 
+      // AI fallback: if the regex clean_name still contains a leading digit
+      // (e.g. unusual formats the regex didn't catch), ask Gemini to parse it.
+      // This is fire-and-forget-safe: on failure we keep the regex result.
+      const hasResidualDigit = /^\d/.test(normalized.clean_name);
+      if (hasResidualDigit) {
+        try {
+          const aiResult = await parseItemText(trimmed);
+          if (aiResult?.clean_name) {
+            normalized.clean_name = aiResult.clean_name;
+            normalized.normalized_name = aiResult.clean_name;
+            if (aiResult.quantity > 0) normalized.quantity = aiResult.quantity;
+            if (aiResult.unit) normalized.unit = aiResult.unit;
+            console.log(`[list/POST] AI fallback for "${trimmed}" → clean_name="${aiResult.clean_name}" qty=${aiResult.quantity}`);
+          }
+        } catch {
+          // Non-fatal — regex result is still valid
+        }
+      }
+
       // Always one row per input. clean_name has quantity/unit stripped.
       // For measurements: quantity=1 (buy 1 package), min_required_amount holds the threshold.
-      // For counts: quantity=N (e.g. "5 apples" → qty=5, name="apples").
+      // For counts: quantity=N (e.g. "5 apples" → qty=5, name="apple").
       const row: Record<string, unknown> = {
         raw_text: trimmed,
         normalized_text: normalized.clean_name,

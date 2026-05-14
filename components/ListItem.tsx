@@ -155,14 +155,14 @@ export function ListItem({
             <span
               onDoubleClick={startEdit}
               title={isLocked ? undefined : 'Double-click to edit'}
-              className="font-semibold text-sm text-on-surface truncate max-w-[220px] sm:max-w-xs"
+              className="font-semibold text-sm text-on-surface truncate max-w-[220px] sm:max-w-xs capitalize"
               style={{
                 textDecoration: isLocked ? 'line-through' : 'none',
                 opacity: isLocked ? 0.5 : 1,
                 cursor: isLocked ? 'default' : 'text',
               }}
             >
-              {item.raw_text}
+              {item.normalized_text || item.raw_text}
             </span>
           )}
 
@@ -172,6 +172,16 @@ export function ListItem({
           )}
           {isPurchased && (
             <span className="inline-block w-2 h-2 rounded-full bg-outline flex-shrink-0" title="Purchased" />
+          )}
+
+          {/* Unit badge (e.g. cup, oz) — shown when item is a measured ingredient */}
+          {!isLocked && item.unit && (
+            <span
+              className="text-[10px] font-semibold text-[#0f5238] bg-[#0f5238]/10 rounded px-1.5 py-0.5 flex-shrink-0 tracking-wide"
+              title="Measurement unit"
+            >
+              {item.unit}
+            </span>
           )}
 
           {/* Todoist badge */}
