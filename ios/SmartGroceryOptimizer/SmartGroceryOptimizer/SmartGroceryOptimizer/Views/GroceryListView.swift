@@ -104,7 +104,7 @@ struct GroceryListView: View {
             }
 
             if !viewModel.purchasedItems.isEmpty {
-                Section("In Cart / Purchased (\(viewModel.purchasedItems.count))") {
+                Section {
                     ForEach(viewModel.purchasedItems) { item in
                         GroceryItemView(
                             item: item,
@@ -116,6 +116,17 @@ struct GroceryListView: View {
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.surfaceContainerLowest)
+                    }
+                } header: {
+                    HStack {
+                        Text("In Cart / Purchased (\(viewModel.purchasedItems.count))")
+                        Spacer()
+                        Button(role: .destructive) {
+                            Task { await viewModel.deletePurchased() }
+                        } label: {
+                            Label("Clear", systemImage: "trash")
+                                .font(.system(size: 12, weight: .medium))
+                        }
                     }
                 }
             }

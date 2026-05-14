@@ -181,6 +181,32 @@ final class GroceryListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Delete Purchased
+
+    /// Delete all items in the "purchased" / "carted" section.
+    func deletePurchased() async {
+        let ids = purchasedItems.map(\.id)
+        guard !ids.isEmpty else { return }
+
+        struct Body: Encodable { let ids: [String] }
+        struct DeleteResponse: Decodable { let success: Bool?; let removed: Int? }
+
+        // Optimistic: remove immediately
+        let snapshot = items
+        items.removeAll { ids.contains($0.id) }
+
+        do {
+            let _: DeleteResponse = try await APIClient.shared.delete(
+                "/api/list",
+                body: Body(ids: ids)
+            )
+        } catch {
+            // Rollback on error
+            items = snapshot
+            errorMessage = "Failed to clear purchased items: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Cart Submit
 
     /// Submit selected items that have a known UPC to the Kroger cart.

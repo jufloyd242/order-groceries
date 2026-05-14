@@ -13,28 +13,12 @@ export interface ListItem {
   preference_id: string | null;
   status: 'pending' | 'matched' | 'compared' | 'carted' | 'purchased';
   created_at: string;
-  purchased_at?: string | null;  // set when status → 'purchased'; drives staple auto-reset
-  persistent?: boolean;        // pinned staple — survives Clear All
-  department?: string | null;  // Kroger aisle category
-}
-
-// UI-layer type: ListItem + joined preference data from the API response
-export interface UIListItemPreference {
-  display_name: string;
-  preferred_upc?: string | null;
-  preferred_asin?: string | null;
-  image_url?: string | null;
-}
-
-export interface UIListItem extends ListItem {
-  preference?: UIListItemPreference | null;
 }
 
 export interface NewListItem {
   raw_text: string;
   source?: 'manual' | 'todoist';
   todoist_task_id?: string;
-  persistent?: boolean;
 }
 
 // ─── Todoist ──────────────────────────────────────────────────
@@ -77,8 +61,6 @@ export interface ProductMatch {
   is_prime?: boolean;   // Amazon Prime eligible
   match_score: number;  // 0-100 fuzzy match confidence
   ai_reasoning?: string; // AI-generated explanation for ambiguous matches
-  normalized_total_qty?: number;  // AI/parsed total quantity in base unit (oz, fl oz, ct)
-  normalized_qty_unit?: string;   // Base unit for normalized_total_qty
   department?: string | null;  // Kroger product category (e.g. "Dairy")
   link?: string;        // Direct product page URL
 }
@@ -111,8 +93,6 @@ export interface ComparisonResult {
   selected_amazon: ProductMatch | null;
   winner: 'kroger' | 'amazon' | 'tie';
   savings: number;
-  ppu_winner?: 'kroger' | 'amazon' | 'tie';  // Winner by price-per-unit
-  savings_note?: string;  // Normalized unit price comparison (e.g. "$0.12/oz vs $0.17/oz")
   price_per_unit: {
     kroger: number | null;
     amazon: number | null;
@@ -170,10 +150,8 @@ export interface NewProductPreference {
 export interface ResolvedItem {
   listItem: ListItem;
   preference: ProductPreference | null;
-  searchQuery: string;       // Base search query (used for AI matching)
-  krogerQuery?: string;      // Store-specific override for Kroger searches
-  amazonQuery?: string;      // Store-specific override for Amazon searches
-  isNew: boolean;            // True = needs user to pick a product
+  searchQuery: string;      // What to search for in store APIs
+  isNew: boolean;           // True = needs user to pick a product
 }
 
 // ─── App Settings ─────────────────────────────────────────────

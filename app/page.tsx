@@ -370,6 +370,28 @@ export default function Home() {
   const cartedCount = items.filter((i) => i.status === 'carted').length;
   const cartedIds = items.filter((i) => i.status === 'carted').map((i) => i.id);
 
+  // Count selected items that have no product preference mapped
+  const unmappedCount = items.filter((i) => selectedIds.has(i.id) && !i.preference).length;
+
+  async function handleDeleteSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected item${ids.length !== 1 ? 's' : ''}?`)) return;
+    // Optimistic remove
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    setSelectedIds(new Set());
+    try {
+      await fetch('/api/list', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+    } catch (err) {
+      console.error('Failed to delete selected items:', err);
+      fetchItems(); // re-sync on error
+    }
+  }
+
   async function revertCartItems() {
     if (cartedIds.length === 0) return;
     // Optimistic update
@@ -448,9 +470,11 @@ export default function Home() {
       {/* Batch action bar (sticky) */}
       <BatchActionBar
         selectedCount={selectedIds.size}
+        unmappedCount={unmappedCount}
         onSearch={handleBatchSearch}
         onCompare={handleBatchCompare}
         onClear={() => setSelectedIds(new Set())}
+        onDeleteSelected={handleDeleteSelected}
       />
 
       {/* ── Bento grid ───────────────────────────────────────── */}

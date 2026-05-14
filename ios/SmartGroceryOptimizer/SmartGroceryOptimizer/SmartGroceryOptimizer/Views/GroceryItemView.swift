@@ -46,6 +46,16 @@ struct GroceryItemView: View {
                 if mappingDiffers {
                     mappingSubline
                 }
+                // Unmapped hint — prompt user to search for a product
+                if item.preference == nil && !isLocked && !skipped {
+                    HStack(spacing: 3) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Tap to find product")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(Color.primary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -167,8 +177,15 @@ struct GroceryItemView: View {
     private var emojiPlaceholder: some View {
         ZStack {
             Color.surfaceContainerLow
-            Text(DepartmentEmoji.emoji(for: item.department))
-                .font(.system(size: 20))
+            if item.preference == nil && !isLocked {
+                // Unmapped: show search icon instead of emoji
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.6))
+            } else {
+                Text(DepartmentEmoji.emoji(for: item.department))
+                    .font(.system(size: 20))
+            }
         }
     }
 

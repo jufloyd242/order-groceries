@@ -120,7 +120,8 @@ export function ListItem({
       {/* ── Thumbnail ── */}
       <div
         className="w-14 h-14 flex-shrink-0 rounded-xl bg-surface-container-low overflow-hidden flex items-center justify-center text-xl border border-[#edeeef]"
-        style={{ opacity: isLocked ? 0.45 : 1 }}
+        style={{ opacity: isLocked ? 0.45 : 1, cursor: (!isLocked && !item.preference && onSearch) ? 'pointer' : undefined }}
+        onClick={() => { if (!isLocked && !item.preference && onSearch) onSearch(item.id, item.raw_text); }}
       >
         {imageUrl ? (
           <img
@@ -129,6 +130,8 @@ export function ListItem({
             className="w-full h-full object-cover"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
+        ) : !item.preference && !isLocked ? (
+          <span className="material-symbols-outlined text-primary/60" style={{ fontSize: '22px' }}>search</span>
         ) : (
           <span>{deptEmoji(item.department)}</span>
         )}
@@ -187,6 +190,17 @@ export function ListItem({
           >
             {item.preference!.display_name} ✏️
           </a>
+        )}
+
+        {/* Unmapped hint — prompt user to search */}
+        {!item.preference && !isLocked && !skipped && onSearch && (
+          <button
+            onClick={() => onSearch(item.id, item.raw_text)}
+            className="flex items-center gap-1 mt-1 text-[11px] font-medium text-primary hover:text-[#0d4430] transition-colors cursor-pointer bg-transparent border-none p-0"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>search</span>
+            Tap to find product
+          </button>
         )}
 
         {/* ── Right action zone (overlay over text) ── */}

@@ -4,12 +4,14 @@ import { useState } from 'react';
 
 interface BatchActionBarProps {
   selectedCount: number;
+  unmappedCount?: number;
   onSearch: (stores: ('kroger' | 'amazon')[]) => void;
   onCompare: (withAmazon: boolean) => void;
   onClear: () => void;
+  onDeleteSelected?: () => void;
 }
 
-export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: BatchActionBarProps) {
+export function BatchActionBar({ selectedCount, unmappedCount = 0, onSearch, onCompare, onClear, onDeleteSelected }: BatchActionBarProps) {
   const [kroger, setKroger] = useState(true);
   const [amazon, setAmazon] = useState(false);
 
@@ -66,7 +68,13 @@ export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: 
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 ml-auto">
+      <div className="flex gap-2 ml-auto items-center">
+        {unmappedCount > 0 && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+            <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>search</span>
+            {unmappedCount} need search
+          </span>
+        )}
         <button
           disabled={activeStores.length === 0 || multiStore}
           onClick={() => onSearch(activeStores)}
@@ -83,6 +91,15 @@ export function BatchActionBar({ selectedCount, onSearch, onCompare, onClear }: 
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>bar_chart</span>
           Compare {selectedCount}
         </button>
+        {onDeleteSelected && (
+          <button
+            onClick={onDeleteSelected}
+            className="flex items-center gap-1 px-3 py-2 text-sm font-semibold text-error bg-white border-2 border-error/15 rounded-xl hover:bg-error/5 active:scale-95 transition-all duration-150 cursor-pointer"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+            Delete {selectedCount}
+          </button>
+        )}
       </div>
     </div>
   );
