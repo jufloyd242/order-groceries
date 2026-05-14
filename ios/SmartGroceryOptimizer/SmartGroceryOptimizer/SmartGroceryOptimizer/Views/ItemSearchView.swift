@@ -6,6 +6,8 @@ import SwiftUI
 
 struct ItemSearchView: View {
     let item: UIListItem
+    /// Called when the user has successfully saved a product preference — parent should reload.
+    var onSaved: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var query: String
@@ -14,9 +16,12 @@ struct ItemSearchView: View {
     @State private var errorMessage: String?
     @State private var savedMessage: String?
 
-    init(item: UIListItem) {
+    init(item: UIListItem, onSaved: (() -> Void)? = nil) {
         self.item = item
-        _query = State(initialValue: item.preference?.displayName ?? item.rawText)
+        self.onSaved = onSaved
+        // Use clean product identity for search — normalizedText has quantity/unit stripped.
+        // Fall back to rawText only if normalization hasn't run yet.
+        _query = State(initialValue: item.preference?.displayName ?? item.normalizedText ?? item.rawText)
     }
 
     var body: some View {
@@ -166,6 +171,10 @@ struct ItemSearchView: View {
                 )
             )
             withAnimation { savedMessage = "Saved: \(product.name)" }
+            // Dismiss after brief confirmation toast, signal parent to reload
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            onSaved?()
+            dismiss()
         } catch {
             errorMessage = "Couldn't save preference: \(error.localizedDescription)"
         }

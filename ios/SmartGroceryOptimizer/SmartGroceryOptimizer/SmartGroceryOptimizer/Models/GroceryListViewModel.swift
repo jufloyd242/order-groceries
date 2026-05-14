@@ -8,6 +8,7 @@ import Combine
 @MainActor
 final class GroceryListViewModel: ObservableObject {
     @Published private(set) var items: [UIListItem] = []
+    @Published private(set) var settings: AppSettings?
     @Published private(set) var isLoading = false
     @Published private(set) var isSyncing = false
     @Published private(set) var isSubmittingCart = false
@@ -15,10 +16,26 @@ final class GroceryListViewModel: ObservableObject {
     @Published var successMessage: String?
 
     /// IDs of items the user has locally checked to go in the cart
-    @Published var selectedIds: Set<String> = []
+    @Published var selectedIds: Set<String> = [] {
+        didSet { persistSelection() }
+    }
+
+    private static let selectedIdsKey = "grocery_selected_ids"
 
     /// Tracks whether the initial default selection has been applied
     private var hasPerformedInitialSelection = false
+
+    // MARK: - Selection Persistence
+
+    private func persistSelection() {
+        UserDefaults.standard.set(Array(selectedIds), forKey: Self.selectedIdsKey)
+    }
+
+    private func restoreSelection(validIds: Set<String>) -> Set<String>? {
+        guard let saved = UserDefaults.standard.stringArray(forKey: Self.selectedIdsKey) else { return nil }
+        // Intersect with currently valid item IDs to remove stale entries
+        return validIds.intersection(saved)
+    }
 
     // MARK: - Fetch
 
@@ -27,18 +44,29 @@ final class GroceryListViewModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
 
+        // Load list + settings in parallel
+        async let listFetch: ListResponse = APIClient.shared.get("/api/list")
+        async let settingsFetch: SettingsResponse = APIClient.shared.get("/api/settings")
+
         do {
-            let response: ListResponse = try await APIClient.shared.get("/api/list")
+            let (response, settingsResp) = try await (listFetch, settingsFetch)
+            settings = settingsResp.settings
             items = response.items
+            let validIds = Set(items.map(\.id))
             if hasPerformedInitialSelection {
                 // Reconcile: keep previously selected IDs that still exist in the list
-                selectedIds = selectedIds.filter { id in items.contains { $0.id == id } }
+                selectedIds = selectedIds.filter { validIds.contains($0) }
             } else {
-                // First load: default to all active (non-purchased, non-carted) items selected
                 hasPerformedInitialSelection = true
-                selectedIds = Set(items.filter {
-                    $0.status == .pending || $0.status == .matched || $0.status == .compared
-                }.map(\.id))
+                // Restore from UserDefaults — do NOT default to select-all on every launch
+                if let restored = restoreSelection(validIds: validIds) {
+                    selectedIds = restored
+                } else {
+                    // First-ever launch: pre-select all active items
+                    selectedIds = Set(items.filter {
+                        $0.status == .pending || $0.status == .matched || $0.status == .compared
+                    }.map(\.id))
+                }
             }
         } catch APIError.unauthenticated {
             errorMessage = "Session expired — please sign in again."
@@ -170,6 +198,50 @@ final class GroceryListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Toggle Persistent (pin/unpin staple)
+
+    func togglePersistent(_ id: String) async {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        let newValue = !(item.persistent ?? false)
+        // Optimistic
+        if let idx = items.firstIndex(where: { $0.id == id }) {
+            items[idx] = items[idx].withPersistent(newValue)
+        }
+        struct Body: Encodable { let id: String; let updates: Updates
+            struct Updates: Encodable { let persistent: Bool }
+        }
+        struct Resp: Decodable { let success: Bool? }
+        do {
+            let _: Resp = try await APIClient.shared.patch("/api/list", body: Body(id: id, updates: .init(persistent: newValue)))
+        } catch {
+            // Roll back
+            if let idx = items.firstIndex(where: { $0.id == id }) {
+                items[idx] = items[idx].withPersistent(!newValue)
+            }
+            errorMessage = "Failed to pin/unpin item."
+        }
+    }
+
+    // MARK: - Change Quantity
+
+    func changeQuantity(_ id: String, quantity: Int) async {
+        let qty = Double(max(1, quantity))
+        // Optimistic
+        if let idx = items.firstIndex(where: { $0.id == id }) {
+            items[idx] = items[idx].withQuantity(qty)
+        }
+        struct Body: Encodable { let id: String; let updates: Updates
+            struct Updates: Encodable { let quantity: Double }
+        }
+        struct Resp: Decodable { let success: Bool? }
+        do {
+            let _: Resp = try await APIClient.shared.patch("/api/list", body: Body(id: id, updates: .init(quantity: qty)))
+        } catch {
+            errorMessage = "Failed to update quantity."
+            await loadItems()
+        }
+    }
+
     // MARK: - Remove Item
 
     func removeItem(_ id: String) async {
@@ -277,11 +349,41 @@ final class GroceryListViewModel: ObservableObject {
         items.filter { $0.status == .purchased || $0.status == .carted }
     }
 
+    /// Items actively in the cart (submitted to store, not yet purchased)
+    var cartedItems: [UIListItem] {
+        items.filter { $0.status == .carted }
+    }
+
+    /// Display name for the preferred cart store (e.g. "King Soopers")
+    var storeName: String {
+        settings?.storeChain ?? settings?.krogerStoreName ?? "King Soopers"
+    }
+
     var selectedPendingCount: Int {
         pendingItems.filter { selectedIds.contains($0.id) }.count
     }
 
+    /// Number of selected pending items that have a mapped product (UPC or ASIN) — these can be carted.
+    var selectedMappedCount: Int {
+        pendingItems.filter {
+            selectedIds.contains($0.id) &&
+            ($0.preference?.preferredUpc != nil || $0.preference?.preferredAsin != nil)
+        }.count
+    }
+
+    /// Number of selected pending items with NO product mapping — these need search first.
+    var selectedUnmappedCount: Int { selectedPendingCount - selectedMappedCount }
+
     var allPendingSelected: Bool {
         !pendingItems.isEmpty && pendingItems.allSatisfy { selectedIds.contains($0.id) }
+    }
+
+    /// First selected, unmapped pending item — used to open the search sheet for batch flow
+    var firstUnmappedSelectedItem: UIListItem? {
+        pendingItems.first {
+            selectedIds.contains($0.id) &&
+            $0.preference?.preferredUpc == nil &&
+            $0.preference?.preferredAsin == nil
+        }
     }
 }

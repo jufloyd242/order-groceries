@@ -40,7 +40,9 @@ struct GroceryItemView: View {
             // ── Thumbnail ──
             thumbnailView
 
-            // ── Text block (tap to search) ──
+            // ── Text block ──
+            // Unmapped item: tap anywhere on the body → open search (discovery-first)
+            // Mapped item: tap anywhere on the body → toggle selection
             VStack(alignment: .leading, spacing: 2) {
                 nameRow
                 if mappingDiffers {
@@ -70,7 +72,14 @@ struct GroceryItemView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture {
-                if !isLocked { onSearch?(item.id) }
+                guard !isLocked && !skipped else { return }
+                if item.preference == nil {
+                    // Unmapped → discovery-first: open search
+                    onSearch?(item.id)
+                } else {
+                    // Mapped → toggle selection for cart
+                    onToggle?(item.id)
+                }
             }
 
             Spacer(minLength: 4)
@@ -203,13 +212,27 @@ struct GroceryItemView: View {
 
     private var nameRow: some View {
         HStack(spacing: 6) {
-            Text(item.rawText)
+            // Show clean product identity (normalizedText), fall back to rawText
+            let displayName = (item.normalizedText ?? item.rawText)
+                .prefix(1).uppercased() + (item.normalizedText ?? item.rawText).dropFirst()
+            Text(displayName)
                 .font(.itemName)
                 .foregroundStyle(Color.onSurface)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .strikethrough(isLocked)
                 .opacity(isLocked ? 0.5 : 1)
+
+            // Unit badge (e.g. cup, oz, lb) — shown for measured ingredients
+            if !isLocked, let unit = item.unit {
+                Text(unit)
+                    .font(.badge)
+                    .foregroundStyle(Color.primary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
 
             // Status dots
             if isCarted {

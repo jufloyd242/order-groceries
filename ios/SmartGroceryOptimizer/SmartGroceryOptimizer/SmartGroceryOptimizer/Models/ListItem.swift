@@ -117,6 +117,34 @@ struct UIListItem: Codable, Identifiable, Equatable {
             persistent: persistent, department: department, preference: preference
         )
     }
+
+    /// Return a copy with updated persistent flag.
+    func withPersistent(_ value: Bool) -> UIListItem {
+        UIListItem(
+            id: id, rawText: rawText, normalizedText: normalizedText,
+            quantity: quantity, unit: unit,
+            quantityType: quantityType, minRequiredAmount: minRequiredAmount,
+            minRequiredUnit: minRequiredUnit,
+            source: source,
+            todoistTaskId: todoistTaskId, preferenceId: preferenceId,
+            status: status, createdAt: createdAt, purchasedAt: purchasedAt,
+            persistent: value, department: department, preference: preference
+        )
+    }
+
+    /// Return a copy with updated quantity.
+    func withQuantity(_ qty: Double) -> UIListItem {
+        UIListItem(
+            id: id, rawText: rawText, normalizedText: normalizedText,
+            quantity: qty, unit: unit,
+            quantityType: quantityType, minRequiredAmount: minRequiredAmount,
+            minRequiredUnit: minRequiredUnit,
+            source: source,
+            todoistTaskId: todoistTaskId, preferenceId: preferenceId,
+            status: status, createdAt: createdAt, purchasedAt: purchasedAt,
+            persistent: persistent, department: department, preference: preference
+        )
+    }
 }
 
 /// POST body for adding items to the list

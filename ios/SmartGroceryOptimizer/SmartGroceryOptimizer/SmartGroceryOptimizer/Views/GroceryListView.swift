@@ -11,6 +11,7 @@ struct GroceryListView: View {
     @State private var showAddField = false
     @FocusState private var addFieldFocused: Bool
     @State private var showSettings = false
+    @State private var showCart = false
     @State private var searchItem: UIListItem?
 
     var body: some View {
@@ -31,7 +32,7 @@ struct GroceryListView: View {
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     if viewModel.selectedPendingCount > 0 {
-                        cartBar
+                        batchActionBar
                     }
                     if showAddField {
                         addBar
@@ -42,7 +43,12 @@ struct GroceryListView: View {
                 SettingsView()
             }
             .sheet(item: $searchItem) { item in
-                ItemSearchView(item: item)
+                ItemSearchView(item: item, onSaved: {
+                    Task { await viewModel.loadItems() }
+                })
+            }
+            .sheet(isPresented: $showCart) {
+                CartView(viewModel: viewModel)
             }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
@@ -94,6 +100,8 @@ struct GroceryListView: View {
                             selected: viewModel.selectedIds.contains(item.id),
                             onToggle: { _ in viewModel.toggleSelection(item.id) },
                             onRemove: { id in Task { await viewModel.removeItem(id) } },
+                            onTogglePersistent: { id in Task { await viewModel.togglePersistent(id) } },
+                            onQuantityChange: { id, qty in Task { await viewModel.changeQuantity(id, quantity: qty) } },
                             onSearch: { _ in searchItem = item }
                         )
                         .listRowInsets(EdgeInsets())
@@ -153,26 +161,92 @@ struct GroceryListView: View {
         .refreshable { await viewModel.loadItems() }
     }
 
-    // MARK: - Cart bar (shown when items are selected)
+    // MARK: - Dynamic Batch Action Bar
+    // Shows "Search & Compare" as primary when any selected item is unmapped.
+    // Shows "Add to [Store]" as primary only when all selected items are mapped.
 
-    private var cartBar: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "cart.badge.plus")
-                .foregroundStyle(Color.onPrimary)
-            Text("Add \(viewModel.selectedPendingCount) to King Soopers")
-                .font(.subheadline.bold())
-                .foregroundStyle(Color.onPrimary)
-            Spacer()
-            if viewModel.isSubmittingCart {
-                ProgressView().tint(Color.onPrimary)
+    private var batchActionBar: some View {
+        VStack(spacing: 0) {
+            // Unmapped warning strip
+            if viewModel.selectedUnmappedCount > 0 && viewModel.selectedMappedCount > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.yellow)
+                        .font(.system(size: 11))
+                    Text("\(viewModel.selectedUnmappedCount) item\(viewModel.selectedUnmappedCount == 1 ? "" : "s") still need search")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.onSurface)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.yellow.opacity(0.12))
             }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.primary)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            Task { await viewModel.submitCart() }
+
+            HStack(spacing: 0) {
+                // —— PRIMARY: Search & Compare — visible when any unmapped item is selected
+                if viewModel.selectedUnmappedCount > 0 {
+                    Button {
+                        // Open search for the first unmapped selected item
+                        if let item = viewModel.firstUnmappedSelectedItem {
+                            searchItem = item
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Search & Compare")
+                                    .font(.subheadline.bold())
+                                Text("\(viewModel.selectedUnmappedCount) item\(viewModel.selectedUnmappedCount == 1 ? "" : "s") need a product")
+                                    .font(.caption)
+                                    .opacity(0.8)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 13)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.secondary)
+                        .foregroundStyle(Color.white)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // —— CART: Add to [Store] — always shown, disabled unless mapped items selected
+                Button {
+                    guard viewModel.selectedMappedCount > 0 else { return }
+                    Task { await viewModel.submitCart() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if viewModel.isSubmittingCart {
+                            ProgressView().tint(Color.onPrimary)
+                        } else {
+                            Image(systemName: "cart.badge.plus")
+                        }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(viewModel.selectedMappedCount > 0
+                                ? "Add \(viewModel.selectedMappedCount) to \(viewModel.storeName)"
+                                : "Map items to add to cart")
+                                .font(.subheadline.bold())
+                            if viewModel.selectedUnmappedCount == 0 && viewModel.selectedMappedCount > 0 {
+                                Text("All selected items mapped")
+                                    .font(.caption)
+                                    .opacity(0.8)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                    .frame(maxWidth: .infinity)
+                    .background(viewModel.selectedMappedCount > 0 ? Color.primary : Color.primary.opacity(0.45))
+                    .foregroundStyle(Color.onPrimary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.selectedMappedCount == 0 || viewModel.isSubmittingCart)
+            }
         }
     }
 
@@ -216,6 +290,25 @@ struct GroceryListView: View {
             }
         }
         ToolbarItemGroup(placement: .navigationBarTrailing) {
+            // Cart button with badge showing carted item count
+            Button {
+                showCart = true
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "cart")
+                    if viewModel.cartedItems.count > 0 {
+                        Text("\(viewModel.cartedItems.count)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .padding(3)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                            .offset(x: 8, y: -8)
+                    }
+                }
+            }
+            .help("View cart")
+
             // Todoist sync
             Button {
                 Task { await viewModel.syncTodoist() }
