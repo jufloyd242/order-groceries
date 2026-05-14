@@ -46,6 +46,16 @@ struct GroceryItemView: View {
                 if mappingDiffers {
                     mappingSubline
                 }
+                // Measurement requirement label (e.g. "Need: 1/2 cup")
+                if let label = item.measurementLabel {
+                    HStack(spacing: 3) {
+                        Text("📏")
+                            .font(.system(size: 10))
+                        Text(label)
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                }
                 // Unmapped hint — prompt user to search for a product
                 if item.preference == nil && !isLocked && !skipped {
                     HStack(spacing: 3) {
@@ -418,6 +428,10 @@ extension UIListItem {
         rawText: String,
         status: ItemStatus = .pending,
         quantity: Double? = 1,
+        unit: String? = nil,
+        quantityType: String? = nil,
+        minRequiredAmount: Double? = nil,
+        minRequiredUnit: String? = nil,
         source: ItemSource = .manual,
         persistent: Bool? = nil,
         department: String? = nil,
@@ -428,7 +442,10 @@ extension UIListItem {
             rawText: rawText,
             normalizedText: rawText.lowercased(),
             quantity: quantity,
-            unit: nil,
+            unit: unit,
+            quantityType: quantityType,
+            minRequiredAmount: minRequiredAmount,
+            minRequiredUnit: minRequiredUnit,
             source: source,
             todoistTaskId: source == .todoist ? "tod-\(id)" : nil,
             preferenceId: preference != nil ? "pref-\(id)" : nil,

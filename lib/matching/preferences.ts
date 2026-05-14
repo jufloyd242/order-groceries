@@ -39,7 +39,7 @@ export async function resolveItem(listItem: ListItem): Promise<ResolvedItem> {
   // Update listItem with normalized text if not already set
   const updatedListItem: ListItem = {
     ...listItem,
-    normalized_text: listItem.normalized_text || normalized.normalized_name,
+    normalized_text: listItem.normalized_text || normalized.clean_name,
     quantity: listItem.quantity || normalized.quantity,
     unit: listItem.unit || normalized.unit,
   };
@@ -48,21 +48,21 @@ export async function resolveItem(listItem: ListItem): Promise<ResolvedItem> {
   const { data: preference, error: prefError } = await supabase
     .from('product_preferences')
     .select('*')
-    .eq('generic_name', normalized.normalized_name)
+    .eq('generic_name', normalized.clean_name)
     .maybeSingle();
 
   if (prefError || !preference) {
     // No mapping found — check if this is a staple so we inject store-brand queries
-    const isStaple = STAPLE_KEYWORDS.some((k) => normalized.normalized_name.includes(k))
+    const isStaple = STAPLE_KEYWORDS.some((k) => normalized.clean_name.includes(k))
       || listItem.raw_text.toLowerCase().includes('generic');
 
     return {
       listItem: updatedListItem,
       preference: null,
-      searchQuery: normalized.normalized_name,
+      searchQuery: normalized.clean_name,
       ...(isStaple ? {
-        krogerQuery: `Simple Truth ${normalized.normalized_name}`,
-        amazonQuery: `365 ${normalized.normalized_name}`,
+        krogerQuery: `Simple Truth ${normalized.clean_name}`,
+        amazonQuery: `365 ${normalized.clean_name}`,
       } : {}),
       isNew: true,
     };
@@ -77,7 +77,7 @@ export async function resolveItem(listItem: ListItem): Promise<ResolvedItem> {
 
   // Staple check: only inject store-brand queries when there's no explicit search_override
   const isStaple = !typedPreference.search_override && (
-    STAPLE_KEYWORDS.some((k) => normalized.normalized_name.includes(k))
+    STAPLE_KEYWORDS.some((k) => normalized.clean_name.includes(k))
     || listItem.raw_text.toLowerCase().includes('generic')
   );
 

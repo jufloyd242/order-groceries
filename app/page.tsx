@@ -21,7 +21,7 @@ export default function Home() {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
-  const initialLoadDone = useRef(false);
+  const SESSION_KEY = 'grocery-selected-ids';
 
   // Close overflow menu when clicking outside
   useEffect(() => {
@@ -33,6 +33,11 @@ export default function Home() {
     if (overflowOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [overflowOpen]);
+
+  // Persist selection to sessionStorage so it survives navigation
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify([...selectedIds]));
+  }, [selectedIds]);
 
   useEffect(() => {
     fetchItems();
@@ -51,9 +56,16 @@ export default function Home() {
       const data = await res.json();
       if (data.success) {
         setItems(data.items);
-        // On first load, pre-select all actionable items so the search count is visible
-        if (!initialLoadDone.current) {
-          initialLoadDone.current = true;
+        const saved = sessionStorage.getItem(SESSION_KEY);
+        if (saved !== null) {
+          // Restore persisted selection, reconciling with the current item list
+          const savedSet = new Set<string>(JSON.parse(saved) as string[]);
+          const validIds = (data.items as ListItemData[])
+            .filter((i) => savedSet.has(i.id))
+            .map((i) => i.id);
+          setSelectedIds(new Set(validIds));
+        } else {
+          // First visit in this session: default to all active items selected
           const preselect = (data.items as ListItemData[])
             .filter((i) => i.status !== 'carted' && i.status !== 'purchased')
             .map((i) => i.id);

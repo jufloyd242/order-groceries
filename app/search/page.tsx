@@ -87,7 +87,7 @@ export default function SearchPage() {
           fetch('/api/list').then((r) => r.json()),
           fetch('/api/settings').then((r) => r.json()),
         ]);
-        const allItems: Array<{ id: string; raw_text: string }> = listRes.items || [];
+        const allItems: Array<{ id: string; raw_text: string; normalized_text?: string | null }> = listRes.items || [];
         const selected = allItems.filter((i: { id: string }) => ids.includes(i.id));
         setBatchItems(selected);
         setBatchLoadingIds(new Set(selected.map((i) => i.id)));
@@ -99,7 +99,11 @@ export default function SearchPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            queries: selected.map((i: { id: string; raw_text: string }) => ({ itemId: i.id, query: i.raw_text })),
+            queries: selected.map((i: { id: string; raw_text: string; normalized_text?: string | null }) => ({
+              itemId: i.id,
+              // Use clean normalized_text (quantity/unit stripped) if available, else raw_text
+              query: i.normalized_text || i.raw_text,
+            })),
             stores: batchStores,
             locationId: loc,
             zipCode: zip,

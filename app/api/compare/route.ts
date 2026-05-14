@@ -4,7 +4,7 @@ import { resolveItem } from '@/lib/matching/preferences';
 import { searchProducts as searchKroger, getProductByUpc } from '@/lib/kroger/products';
 import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
-import { reScoreAmbiguousMatches } from '@/lib/ai/groq';
+import { applySemanticMatching } from '@/lib/ai/groq';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
 import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
 
@@ -149,8 +149,8 @@ export async function GET(request: NextRequest) {
           // Pinned products (score 100) and clear matches are untouched.
           // If GROQ_API_KEY is not set, this is a no-op.
           const [aiKroger, aiAmazon] = await Promise.all([
-            hasExactKroger ? scoredKroger : reScoreAmbiguousMatches(query, scoredKroger),
-            hasExactAmazon ? scoredAmazon : reScoreAmbiguousMatches(query, scoredAmazon),
+            hasExactKroger ? scoredKroger : applySemanticMatching(query, scoredKroger),
+            hasExactAmazon ? scoredAmazon : applySemanticMatching(query, scoredAmazon),
           ]);
 
           // Perform comparison (pass preference so it can prioritize saved products)

@@ -19,8 +19,8 @@ const VOLUME_TO_FLOZ: Record<string, number> = {
   pt: 16,
   qt: 32,
   gal: 128,
-  L: 33.814,
-  mL: 0.033814,
+  l: 33.814,
+  ml: 0.033814,
 };
 
 const COUNT_UNITS = new Set(['ct', 'count', 'pack', 'roll', 'dozen', 'sheet']);
@@ -70,9 +70,84 @@ export function calculatePricePerUnit(
 }
 
 /**
+ * Estimate the total volume/weight of a product in base units (oz or fl oz).
+ * Returns null if the product's size can't be parsed.
+ */
+function estimateProductVolume(product: ProductMatch): { totalQty: number; baseUnit: string } | null {
+  // Try parsing the product's size string (e.g. "16 oz", "1 gal", "8 fl oz")
+  const sizeStr = (product.size || '').toLowerCase();
+
+  // Try weight units
+  for (const [unit, factor] of Object.entries(WEIGHT_TO_OZ)) {
+    const pattern = new RegExp(`(\\d+\\.?\\d*)\\s*${unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    const match = sizeStr.match(pattern);
+    if (match) {
+      return { totalQty: parseFloat(match[1]) * factor, baseUnit: 'oz' };
+    }
+  }
+
+  // Try volume units
+  for (const [unit, factor] of Object.entries(VOLUME_TO_FLOZ)) {
+    const escaped = unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(\\d+\\.?\\d*)\\s*${escaped}\\b`, 'i');
+    const match = sizeStr.match(pattern);
+    if (match) {
+      return { totalQty: parseFloat(match[1]) * factor, baseUnit: 'fl oz' };
+    }
+  }
+
+  // Common aliases not covered above
+  const galMatch = sizeStr.match(/(\d+\.?\d*)\s*gal/i);
+  if (galMatch) return { totalQty: parseFloat(galMatch[1]) * 128, baseUnit: 'fl oz' };
+
+  return null;
+}
+
+/**
+ * Filter products to only those meeting a minimum volume/weight threshold.
+ * Returns products sorted by total price ascending (smallest sufficient first).
+ */
+export function filterByThreshold(
+  products: ProductMatch[],
+  minAmount: number,
+  minUnit: string
+): ProductMatch[] {
+  const sufficient: ProductMatch[] = [];
+
+  for (const product of products) {
+    const vol = estimateProductVolume(product);
+    if (!vol) {
+      // Can't determine volume — include it but don't prioritize
+      sufficient.push(product);
+      continue;
+    }
+    // Only compare same base units (oz↔oz, fl oz↔fl oz)
+    if (vol.baseUnit !== minUnit) {
+      sufficient.push(product); // different unit category — include
+      continue;
+    }
+    if (vol.totalQty >= minAmount) {
+      sufficient.push(product);
+    }
+    // else: product is too small — exclude
+  }
+
+  // Sort by total price ascending (smallest sufficient package = best value for the user)
+  return sufficient.sort((a, b) => {
+    const priceA = (a.promo_price ?? a.price) || Infinity;
+    const priceB = (b.promo_price ?? b.price) || Infinity;
+    return priceA - priceB;
+  });
+}
+
+/**
  * Compare prices between Kroger and Amazon for a single item.
  * Selects the best match from each store and determines the winner.
  * If a preference with preferred_upc/preferred_asin exists, use that product.
+ *
+ * For MEASUREMENT items (e.g. "1/2 cup milk"): applies threshold filtering
+ * to exclude products smaller than the required amount, then picks the
+ * cheapest sufficient package (not lowest per-unit — avoids 25lb bags).
  */
 export function compareItem(
   item: ListItem,
@@ -80,6 +155,16 @@ export function compareItem(
   amazonMatches: ProductMatch[],
   preference?: any
 ): ComparisonResult {
+  // ── Threshold pre-filter for MEASUREMENT items ──
+  // Exclude products that provide less than the required amount.
+  let filteredKroger = krogerMatches;
+  let filteredAmazon = amazonMatches;
+
+  if (item.quantity_type === 'measurement' && item.min_required_amount && item.min_required_unit) {
+    filteredKroger = filterByThreshold(krogerMatches, item.min_required_amount, item.min_required_unit);
+    filteredAmazon = filterByThreshold(amazonMatches, item.min_required_amount, item.min_required_unit);
+  }
+
   // If there's a saved preference with a UPC/ASIN, find that product in the results
   let bestKroger: ProductMatch | null = null;
   let bestAmazon: ProductMatch | null = null;
@@ -90,21 +175,21 @@ export function compareItem(
   // in the result set (e.g. temporarily out of stock).
   if (preference?.preferred_upc) {
     bestKroger =
-      krogerMatches.find((p) => p.upc === preference.preferred_upc) ??
-      (krogerMatches[0] ?? null);
+      filteredKroger.find((p) => p.upc === preference.preferred_upc) ??
+      (filteredKroger[0] ?? null);
     // Force score to 100 so the pin is never filtered out downstream
     if (bestKroger) bestKroger = { ...bestKroger, match_score: 100 };
   } else {
-    bestKroger = krogerMatches.length > 0 ? krogerMatches[0] : null;
+    bestKroger = filteredKroger.length > 0 ? filteredKroger[0] : null;
   }
 
   if (preference?.preferred_asin) {
     bestAmazon =
-      amazonMatches.find((p) => p.asin === preference.preferred_asin) ??
-      (amazonMatches[0] ?? null);
+      filteredAmazon.find((p) => p.asin === preference.preferred_asin) ??
+      (filteredAmazon[0] ?? null);
     if (bestAmazon) bestAmazon = { ...bestAmazon, match_score: 100 };
   } else {
-    bestAmazon = amazonMatches.length > 0 ? amazonMatches[0] : null;
+    bestAmazon = filteredAmazon.length > 0 ? filteredAmazon[0] : null;
   }
 
   // Calculate effective prices (use promo price if available)
@@ -155,6 +240,7 @@ export function compareItem(
     selected_amazon: bestAmazon,
     winner,
     savings,
+    best_fit: item.quantity_type === 'measurement' && !!(item.min_required_amount),
     price_per_unit: {
       kroger: krogerPPU,
       amazon: amazonPPU,

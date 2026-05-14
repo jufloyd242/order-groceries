@@ -57,6 +57,10 @@ Product Semantics: 'milk' means dairy milk (not milk chocolate). '2% milk' match
 
 Never Return Nothing: Unless the results are completely unrelated (e.g., searching for milk and getting a toaster), ALWAYS pick the most similar item. A low-confidence match is better than no match.
 
+Measurement vs Count Awareness:
+- If the search query includes a measurement (e.g., "1/2 cup milk", "500g chicken", "2 tbsp butter"), the user needs a specific amount. Pick the SMALLEST available package that provides AT LEAST that amount. Do NOT pick bulk/warehouse sizes.
+- If the query is a count (e.g., "3 apples", "2 bananas"), pick the most relevant product regardless of package size.
+
 Size Extraction: For the best match, extract its total quantity:
 - If it is a multi-pack (e.g., "6 x 16.9 fl oz", "12 mega rolls"), compute the TOTAL quantity.
 - For weight/volume, normalize to oz (for solids) or fl oz (for liquids).

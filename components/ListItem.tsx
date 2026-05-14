@@ -121,7 +121,7 @@ export function ListItem({
       <div
         className="w-14 h-14 flex-shrink-0 rounded-xl bg-surface-container-low overflow-hidden flex items-center justify-center text-xl border border-[#edeeef]"
         style={{ opacity: isLocked ? 0.45 : 1, cursor: (!isLocked && !item.preference && onSearch) ? 'pointer' : undefined }}
-        onClick={() => { if (!isLocked && !item.preference && onSearch) onSearch(item.id, item.raw_text); }}
+        onClick={() => { if (!isLocked && !item.preference && onSearch) onSearch(item.id, item.normalized_text || item.raw_text); }}
       >
         {imageUrl ? (
           <img
@@ -195,7 +195,7 @@ export function ListItem({
         {/* Unmapped hint — prompt user to search */}
         {!item.preference && !isLocked && !skipped && onSearch && (
           <button
-            onClick={() => onSearch(item.id, item.raw_text)}
+            onClick={() => onSearch(item.id, item.normalized_text || item.raw_text)}
             className="flex items-center gap-1 mt-1 text-[11px] font-medium text-primary hover:text-[#0d4430] transition-colors cursor-pointer bg-transparent border-none p-0"
           >
             <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>search</span>
@@ -272,7 +272,7 @@ export function ListItem({
             {/* Carted → Re-search */}
             {isCarted && onSearch && (
               <button
-                onClick={() => onSearch(item.id, item.raw_text)}
+                onClick={() => onSearch(item.id, item.normalized_text || item.raw_text)}
                 title="Search again for this item"
                 className="flex items-center text-[10px] font-semibold text-primary border border-primary/30 bg-primary-container/30 rounded-lg px-2 py-1 transition-colors cursor-pointer"
                 aria-label="Re-search item"

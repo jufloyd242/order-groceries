@@ -13,7 +13,7 @@ interface ComparisonRowProps {
 }
 
 export function ComparisonRow({ result, onPick, isAmazonSearched = false }: ComparisonRowProps) {
-  const { item, selected_kroger, selected_amazon, winner, savings } = result;
+  const { item, selected_kroger, selected_amazon, winner, savings, best_fit } = result;
   const { addItem } = useCart();
   const [addedKroger, setAddedKroger] = useState(false);
   const [addedAmazon, setAddedAmazon] = useState(false);
@@ -22,6 +22,11 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
   const krogerPrice = selected_kroger ? ((selected_kroger.promo_price ?? selected_kroger.price) || null) : null;
   // Treat $0 as unavailable (SerpApi free tier limitation)
   const amazonPrice = selected_amazon ? ((selected_amazon.promo_price ?? selected_amazon.price) || null) : null;
+
+  // Format the measurement requirement for display
+  const measurementLabel = item.quantity_type === 'measurement' && item.min_required_amount
+    ? `Need: ${item.quantity}${item.unit ? ' ' + item.unit : ''}`
+    : null;
 
   return (
     <div className="glass-card" style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-md)' }}>
@@ -52,6 +57,11 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
             )}
             {item.status === 'pending' && (
               <span className="badge badge-amber" style={{ height: 'auto', padding: '2px 6px', fontSize: '0.7rem' }}>⚠️ NEEDS PICK</span>
+            )}
+            {measurementLabel && (
+              <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--accent-blue)', fontWeight: 600, marginTop: '2px' }}>
+                📏 {measurementLabel}
+              </span>
             )}
           </div>
         </div>
@@ -161,6 +171,11 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                 Save ${savings.toFixed(2)}
               </div>
+              {best_fit && (
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#0ea5e9', marginTop: '4px', padding: '2px 6px', backgroundColor: 'rgba(14, 165, 233, 0.1)', borderRadius: '4px', display: 'inline-block' }}>
+                  🎯 Best Fit
+                </div>
+              )}
             </div>
           )}
         </div>

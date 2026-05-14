@@ -1,4 +1,4 @@
-import { NormalizedItem, Abbreviation } from '@/types';
+import { NormalizedItem, QuantityType, Abbreviation } from '@/types';
 
 /**
  * Default abbreviation/synonym dictionary for common grocery shorthand.
@@ -32,22 +32,67 @@ export const DEFAULT_ABBREVIATIONS: Omit<Abbreviation, 'id'>[] = [
 ];
 
 /**
- * Common unit patterns for extraction from grocery item text
+ * Common unit patterns for extraction from grocery item text.
+ * Measurement units (cups, tsp, tbsp) come first to take priority over
+ * weight/volume units when both could match.
  */
-const UNIT_PATTERNS: Array<{ pattern: RegExp; unit: string }> = [
-  { pattern: /(\d+\.?\d*)\s*(lbs?|pounds?)/i, unit: 'lb' },
-  { pattern: /(\d+\.?\d*)\s*(oz|ounces?)/i, unit: 'oz' },
-  { pattern: /(\d+\.?\d*)\s*(fl\s*oz|fluid\s*ounces?)/i, unit: 'fl oz' },
-  { pattern: /(\d+\.?\d*)\s*(gal|gallons?)/i, unit: 'gal' },
-  { pattern: /(\d+\.?\d*)\s*(qt|quarts?)/i, unit: 'qt' },
-  { pattern: /(\d+\.?\d*)\s*(pt|pints?)/i, unit: 'pt' },
-  { pattern: /(\d+\.?\d*)\s*(L|liters?|litres?)/i, unit: 'L' },
-  { pattern: /(\d+\.?\d*)\s*(mL|milliliters?|millilitres?)/i, unit: 'mL' },
-  { pattern: /(\d+\.?\d*)\s*(g|grams?)/i, unit: 'g' },
-  { pattern: /(\d+\.?\d*)\s*(kg|kilograms?)/i, unit: 'kg' },
-  { pattern: /(\d+\.?\d*)\s*(ct|count|pack|pk|rolls?)/i, unit: 'ct' },
-  { pattern: /(\d+\.?\d*)\s*(doz|dozen)/i, unit: 'dozen' },
+const UNIT_PATTERNS: Array<{ pattern: RegExp; unit: string; isMeasurement: boolean; expandable?: boolean }> = [
+  // ── Recipe / cooking measurement units (always MEASUREMENT) ──
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(cups?)/i, unit: 'cup', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(tbsp|tablespoons?)/i, unit: 'tbsp', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(tsp|teaspoons?)/i, unit: 'tsp', isMeasurement: true },
+  // ── Weight / volume units (MEASUREMENT — buying by weight/volume) ──
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(lbs?|pounds?)/i, unit: 'lb', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(oz|ounces?)/i, unit: 'oz', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(fl\s*oz|fluid\s*ounces?)/i, unit: 'fl oz', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(gal|gallons?)/i, unit: 'gal', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(qt|quarts?)/i, unit: 'qt', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(pt|pints?)/i, unit: 'pt', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(L|liters?|litres?)/i, unit: 'L', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(mL|milliliters?|millilitres?)/i, unit: 'mL', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(g|grams?)/i, unit: 'g', isMeasurement: true },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(kg|kilograms?)/i, unit: 'kg', isMeasurement: true },
+  // ── Informal count units (discrete items — triggers row expansion) ──
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(slices?|pieces?|bunch(?:es)?|heads?|stalks?|cloves?|sticks?|loav(?:es)?|loaf|strips?|fillets?|ears?|bags?|box(?:es)?|cans?|jars?|bottles?)\b/i, unit: 'ct', isMeasurement: false, expandable: true },
+  // ── Count units (COUNT — discrete packs/items) ──
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(ct|count|pack|pk|rolls?)/i, unit: 'ct', isMeasurement: false },
+  { pattern: /(\d+\/\d+|\d+\.?\d*)\s*(doz|dozen)/i, unit: 'dozen', isMeasurement: false },
 ];
+
+/**
+ * Parse a fraction string (e.g. "1/2") or decimal/integer into a number.
+ */
+function parseFractionOrNumber(str: string): number {
+  if (str.includes('/')) {
+    const [num, den] = str.split('/');
+    const n = parseFloat(num);
+    const d = parseFloat(den);
+    return d !== 0 ? n / d : 0;
+  }
+  return parseFloat(str);
+}
+
+/**
+ * Conversion factors from recipe/grocery units to base units.
+ * Weight → oz, Volume → fl oz
+ */
+const MEASUREMENT_TO_BASE: Record<string, { factor: number; baseUnit: 'oz' | 'fl oz' }> = {
+  // Volume → fl oz
+  'cup': { factor: 8, baseUnit: 'fl oz' },
+  'tbsp': { factor: 0.5, baseUnit: 'fl oz' },
+  'tsp': { factor: 0.1667, baseUnit: 'fl oz' },
+  'fl oz': { factor: 1, baseUnit: 'fl oz' },
+  'gal': { factor: 128, baseUnit: 'fl oz' },
+  'qt': { factor: 32, baseUnit: 'fl oz' },
+  'pt': { factor: 16, baseUnit: 'fl oz' },
+  'L': { factor: 33.814, baseUnit: 'fl oz' },
+  'mL': { factor: 0.033814, baseUnit: 'fl oz' },
+  // Weight → oz
+  'oz': { factor: 1, baseUnit: 'oz' },
+  'lb': { factor: 16, baseUnit: 'oz' },
+  'g': { factor: 0.03527396, baseUnit: 'oz' },
+  'kg': { factor: 35.27396, baseUnit: 'oz' },
+};
 
 /**
  * Simple quantity pattern for bare numbers (e.g., "2 milk" → qty=2)
@@ -55,12 +100,42 @@ const UNIT_PATTERNS: Array<{ pattern: RegExp; unit: string }> = [
 const BARE_QUANTITY_PATTERN = /^(\d+)\s+/;
 
 /**
+ * Singularize a word using common English rules.
+ * Only applied to the last word when quantity > 1 (e.g., "plums" → "plum").
+ */
+function singularize(word: string): string {
+  const lower = word.toLowerCase();
+  // Don't singularize short words or words that are already singular-looking
+  if (lower.length <= 2) return word;
+  // Irregular plurals
+  const irregulars: Record<string, string> = {
+    'tomatoes': 'tomato', 'potatoes': 'potato', 'cherries': 'cherry',
+    'berries': 'berry', 'strawberries': 'strawberry', 'blueberries': 'blueberry',
+    'raspberries': 'raspberry', 'blackberries': 'blackberry', 'cranberries': 'cranberry',
+    'leaves': 'leaf', 'loaves': 'loaf', 'halves': 'half', 'knives': 'knife',
+    'shelves': 'shelf', 'selves': 'self', 'wives': 'wife', 'lives': 'life',
+    'peaches': 'peach', 'bunches': 'bunch', 'radishes': 'radish',
+    'squashes': 'squash', 'sandwiches': 'sandwich',
+  };
+  if (irregulars[lower]) return irregulars[lower];
+  // -ies → -y (but not for short words like "dies")
+  if (lower.endsWith('ies') && lower.length > 4) return lower.slice(0, -3) + 'y';
+  // -ves → -f (e.g., "calves" → "calf")
+  if (lower.endsWith('ves')) return lower.slice(0, -3) + 'f';
+  // -ches, -shes, -ses, -xes, -zes → drop "es"
+  if (/(?:ch|sh|s|x|z)es$/.test(lower)) return lower.slice(0, -2);
+  // -s (but not -ss like "grass")
+  if (lower.endsWith('s') && !lower.endsWith('ss') && !lower.endsWith('us')) return lower.slice(0, -1);
+  return word;
+}
+
+/**
  * Normalize a raw grocery item string into structured data.
  *
  * Pipeline:
- * 1. Lowercase
- * 2. Expand abbreviations
- * 3. Extract quantity + unit
+ * 1. Lowercase + expand abbreviations
+ * 2. Extract quantity + unit → classify as COUNT or MEASUREMENT
+ * 3. For MEASUREMENT: convert to base unit (oz / fl oz) → min_required_amount
  * 4. Clean up remaining text
  */
 export function normalizeItem(
@@ -84,38 +159,69 @@ export function normalizeItem(
   // Step 2: Extract quantity and unit
   let quantity: number | null = null;
   let unit: string | null = null;
+  let quantityType: QuantityType | null = null;
+  let minRequiredAmount: number | null = null;
+  let minRequiredUnit: string | null = null;
 
-  for (const { pattern, unit: unitName } of UNIT_PATTERNS) {
+  for (const { pattern, unit: unitName, isMeasurement } of UNIT_PATTERNS) {
     const match = text.match(pattern);
     if (match) {
-      quantity = parseFloat(match[1]);
+      quantity = parseFractionOrNumber(match[1]);
       unit = unitName;
+      quantityType = isMeasurement ? 'measurement' : 'count';
       text = text.replace(match[0], '').trim();
       break;
     }
   }
 
-  // If no unit found, check for bare quantity  (e.g., "2 milk")
+  // If no unit found, check for bare quantity (e.g., "2 milk")
   if (quantity === null) {
     const bareMatch = text.match(BARE_QUANTITY_PATTERN);
     if (bareMatch) {
       quantity = parseInt(bareMatch[1], 10);
+      quantityType = 'count'; // bare number = countable items
       text = text.replace(bareMatch[0], '').trim();
     }
   }
 
-  // Step 3: Clean up
-  const normalized = text
+  // Step 3: For MEASUREMENT quantities, convert to base unit.
+  // Also reset quantity to 1 — the user is buying 1 package that satisfies
+  // the threshold, not 0.5 of a package (the fraction lives in min_required_amount).
+  if (quantityType === 'measurement' && quantity !== null && unit !== null) {
+    const conversion = MEASUREMENT_TO_BASE[unit];
+    if (conversion) {
+      minRequiredAmount = Math.round(quantity * conversion.factor * 10000) / 10000;
+      minRequiredUnit = conversion.baseUnit;
+    }
+    quantity = 1; // always buy 1 (smallest sufficient package)
+  }
+
+  // Step 4: Clean up
+  let normalized = text
+    .replace(/^of\s+/i, '')   // strip leading "of" (e.g., "of swiss cheese" → "swiss cheese")
     .replace(/[^\w\s-]/g, '') // remove special chars except hyphens
     .replace(/\s+/g, ' ')    // collapse whitespace
     .trim();
 
+  // Step 5: Singularize the last word when quantity > 1 (e.g., "plums" → "plum")
+  if (quantity !== null && quantity > 1) {
+    const words = normalized.split(' ');
+    if (words.length > 0) {
+      words[words.length - 1] = singularize(words[words.length - 1]);
+      normalized = words.join(' ');
+    }
+  }
+
   return {
     original: rawText,
     normalized_name: normalized,
+    clean_name: normalized,
     quantity,
     unit,
     brand: null, // Brand extraction is a future enhancement
+    quantity_type: quantityType,
+    min_required_amount: minRequiredAmount,
+    min_required_unit: minRequiredUnit,
   };
 }
 

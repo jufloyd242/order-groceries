@@ -17,6 +17,9 @@ final class GroceryListViewModel: ObservableObject {
     /// IDs of items the user has locally checked to go in the cart
     @Published var selectedIds: Set<String> = []
 
+    /// Tracks whether the initial default selection has been applied
+    private var hasPerformedInitialSelection = false
+
     // MARK: - Fetch
 
     func loadItems() async {
@@ -27,8 +30,16 @@ final class GroceryListViewModel: ObservableObject {
         do {
             let response: ListResponse = try await APIClient.shared.get("/api/list")
             items = response.items
-            // Remove stale selections for items no longer in the list
-            selectedIds = selectedIds.filter { id in items.contains { $0.id == id } }
+            if hasPerformedInitialSelection {
+                // Reconcile: keep previously selected IDs that still exist in the list
+                selectedIds = selectedIds.filter { id in items.contains { $0.id == id } }
+            } else {
+                // First load: default to all active (non-purchased, non-carted) items selected
+                hasPerformedInitialSelection = true
+                selectedIds = Set(items.filter {
+                    $0.status == .pending || $0.status == .matched || $0.status == .compared
+                }.map(\.id))
+            }
         } catch APIError.unauthenticated {
             errorMessage = "Session expired — please sign in again."
         } catch {

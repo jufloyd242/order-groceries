@@ -108,15 +108,24 @@ export async function POST(request: NextRequest) {
       // Parse quantity, unit, and normalized name from raw text
       const normalized = normalizeItem(trimmed, abbrevMap);
 
-      itemsToInsert.push({
+      // Always one row per input. clean_name has quantity/unit stripped.
+      // For measurements: quantity=1 (buy 1 package), min_required_amount holds the threshold.
+      // For counts: quantity=N (e.g. "5 apples" → qty=5, name="apples").
+      const row: Record<string, unknown> = {
         raw_text: trimmed,
-        normalized_text: normalized.normalized_name,
+        normalized_text: normalized.clean_name,
         quantity: normalized.quantity,
         unit: normalized.unit,
         source: item.source || 'manual',
         todoist_task_id: item.todoist_task_id || null,
         status: 'pending',
-      });
+      };
+      // Only include measurement fields if the columns exist in the DB
+      if (normalized.quantity_type) row.quantity_type = normalized.quantity_type;
+      if (normalized.min_required_amount != null) row.min_required_amount = normalized.min_required_amount;
+      if (normalized.min_required_unit) row.min_required_unit = normalized.min_required_unit;
+
+      itemsToInsert.push(row);
       existingTexts.push(trimmed.toLowerCase()); // prevent dupes in same batch
     }
 

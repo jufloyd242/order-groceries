@@ -8,6 +8,12 @@ export interface ListItem {
   normalized_text: string | null;
   quantity: number | null;
   unit: string | null;
+  /** 'count' = discrete items (3 apples), 'measurement' = recipe amount (1/2 cup milk) */
+  quantity_type: 'count' | 'measurement' | null;
+  /** For measurements: minimum amount needed in base units (oz for weight, fl oz for volume) */
+  min_required_amount: number | null;
+  /** Base unit for min_required_amount: 'oz', 'fl oz', or 'ct' */
+  min_required_unit: string | null;
   source: 'manual' | 'todoist';
   todoist_task_id: string | null;
   preference_id: string | null;
@@ -93,6 +99,8 @@ export interface ComparisonResult {
   selected_amazon: ProductMatch | null;
   winner: 'kroger' | 'amazon' | 'tie';
   savings: number;
+  /** True when item is a measurement and the winner is the smallest sufficient package */
+  best_fit?: boolean;
   price_per_unit: {
     kroger: number | null;
     amazon: number | null;
@@ -102,12 +110,23 @@ export interface ComparisonResult {
 
 // ─── Normalization ────────────────────────────────────────────
 
+/** Classifies whether a quantity represents discrete items or a recipe measurement */
+export type QuantityType = 'count' | 'measurement';
+
 export interface NormalizedItem {
   original: string;
   normalized_name: string;
+  /** Product identity with all quantity/unit text stripped — use for search queries and DB storage */
+  clean_name: string;
   quantity: number | null;
   unit: string | null;
   brand: string | null;
+  /** 'count' = discrete items (3 apples), 'measurement' = recipe amount (1/2 cup milk) */
+  quantity_type: QuantityType | null;
+  /** For measurements: the minimum amount needed, converted to base unit (oz or fl oz) */
+  min_required_amount: number | null;
+  /** Base unit for min_required_amount: 'oz' or 'fl oz' */
+  min_required_unit: string | null;
 }
 
 export interface Abbreviation {
@@ -115,6 +134,23 @@ export interface Abbreviation {
   short_form: string;
   expansion: string;
   is_custom: boolean;
+}
+
+// ─── UI List Item (enriched with preference) ─────────────────
+
+export interface UIListItemPreference {
+  display_name: string;
+  preferred_upc: string | null;
+  preferred_asin: string | null;
+  image_url?: string | null;
+}
+
+/** ListItem enriched with joined preference data — what GET /api/list returns */
+export interface UIListItem extends ListItem {
+  persistent?: boolean;
+  purchased_at?: string | null;
+  department?: string | null;
+  preference: UIListItemPreference | null;
 }
 
 // ─── Preferences (Smart Product Mapping) ──────────────────────
