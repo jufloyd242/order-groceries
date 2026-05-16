@@ -25,6 +25,11 @@ struct GroceryItemView: View {
     private var qty: Int { Int(item.quantity ?? 1) }
     private var imageUrl: String? { item.preference?.imageUrl }
 
+    /// Item has no mapped product (no UPC and no ASIN) — needs search
+    private var isUnmapped: Bool {
+        item.preference?.preferredUpc == nil && item.preference?.preferredAsin == nil
+    }
+
     /// Whether the preference display name differs from the raw text
     private var mappingDiffers: Bool {
         guard let pref = item.preference else { return false }
@@ -59,7 +64,7 @@ struct GroceryItemView: View {
                     .foregroundStyle(Color.accentColor)
                 }
                 // Unmapped hint — prompt user to search for a product
-                if item.preference == nil && !isLocked && !skipped {
+                if isUnmapped && !isLocked && !skipped {
                     HStack(spacing: 3) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 10, weight: .medium))
@@ -73,7 +78,7 @@ struct GroceryItemView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 guard !isLocked && !skipped else { return }
-                if item.preference == nil {
+                if isUnmapped {
                     // Unmapped → discovery-first: open search
                     onSearch?(item.id)
                 } else {
@@ -196,7 +201,7 @@ struct GroceryItemView: View {
     private var emojiPlaceholder: some View {
         ZStack {
             Color.surfaceContainerLow
-            if item.preference == nil && !isLocked {
+            if isUnmapped && !isLocked {
                 // Unmapped: show search icon instead of emoji
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 18, weight: .medium))

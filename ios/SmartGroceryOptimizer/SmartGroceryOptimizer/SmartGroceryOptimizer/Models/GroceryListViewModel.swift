@@ -159,6 +159,15 @@ final class GroceryListViewModel: ObservableObject {
         selectedIds = []
     }
 
+    /// Toggle selection for a specific section's items
+    func toggleSelectSection(_ ids: [String], allSelected: Bool) {
+        if allSelected {
+            selectedIds.subtract(ids)
+        } else {
+            selectedIds.formUnion(ids)
+        }
+    }
+
     // MARK: - Toggle Purchased (swipe or tap)
 
     func toggleItem(_ item: UIListItem) async {
@@ -339,10 +348,48 @@ final class GroceryListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Delete Selected (batch)
+
+    func deleteSelected() async {
+        let ids = Array(selectedIds)
+        guard !ids.isEmpty else { return }
+
+        struct Body: Encodable { let ids: [String] }
+        struct DeleteResponse: Decodable { let success: Bool?; let removed: Int? }
+
+        // Optimistic: remove immediately
+        let snapshot = items
+        let selectedSnapshot = selectedIds
+        items.removeAll { ids.contains($0.id) }
+        selectedIds = []
+
+        do {
+            let _: DeleteResponse = try await APIClient.shared.delete(
+                "/api/list",
+                body: Body(ids: ids)
+            )
+        } catch {
+            // Rollback on error
+            items = snapshot
+            selectedIds = selectedSnapshot
+            errorMessage = "Failed to delete items: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Computed
 
     var pendingItems: [UIListItem] {
         items.filter { $0.status != .purchased && $0.status != .carted }
+    }
+
+    /// Pinned staples — persistent items that are still pending
+    var stapleItems: [UIListItem] {
+        items.filter { $0.persistent == true && $0.status != .purchased && $0.status != .carted }
+    }
+
+    /// Today's list — non-persistent pending items
+    var todayItems: [UIListItem] {
+        items.filter { $0.persistent != true && $0.status != .purchased && $0.status != .carted }
     }
 
     var purchasedItems: [UIListItem] {
@@ -376,6 +423,24 @@ final class GroceryListViewModel: ObservableObject {
 
     var allPendingSelected: Bool {
         !pendingItems.isEmpty && pendingItems.allSatisfy { selectedIds.contains($0.id) }
+    }
+
+    // MARK: - Per-Section Selection Helpers
+
+    var stapleSelectableIds: [String] {
+        stapleItems.filter { $0.status != .carted && $0.status != .purchased }.map(\.id)
+    }
+
+    var stapleAllSelected: Bool {
+        !stapleSelectableIds.isEmpty && stapleSelectableIds.allSatisfy { selectedIds.contains($0) }
+    }
+
+    var todaySelectableIds: [String] {
+        todayItems.filter { $0.status != .carted && $0.status != .purchased }.map(\.id)
+    }
+
+    var todayAllSelected: Bool {
+        !todaySelectableIds.isEmpty && todaySelectableIds.allSatisfy { selectedIds.contains($0) }
     }
 
     /// First selected, unmapped pending item — used to open the search sheet for batch flow

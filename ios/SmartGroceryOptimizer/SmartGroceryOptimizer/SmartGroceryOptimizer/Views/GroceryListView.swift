@@ -12,6 +12,7 @@ struct GroceryListView: View {
     @FocusState private var addFieldFocused: Bool
     @State private var showSettings = false
     @State private var showCart = false
+    @State private var showDeleteConfirm = false
     @State private var searchItem: UIListItem?
 
     var body: some View {
@@ -74,7 +75,7 @@ struct GroceryListView: View {
 
     private var itemList: some View {
         List {
-            // ── Bulk selection row ──
+            // ── Global bulk selection row ──
             if !viewModel.pendingItems.isEmpty {
                 HStack {
                     Button(viewModel.allPendingSelected ? "Deselect All" : "Select All") {
@@ -92,9 +93,10 @@ struct GroceryListView: View {
                 .listRowSeparator(.hidden)
             }
 
-            if !viewModel.pendingItems.isEmpty {
-                Section("To Buy (\(viewModel.pendingItems.count))") {
-                    ForEach(viewModel.pendingItems) { item in
+            // ── Staples section (persistent items) ──
+            if !viewModel.stapleItems.isEmpty {
+                Section {
+                    ForEach(viewModel.stapleItems) { item in
                         GroceryItemView(
                             item: item,
                             selected: viewModel.selectedIds.contains(item.id),
@@ -108,9 +110,48 @@ struct GroceryListView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.surfaceContainerLowest)
                     }
+                } header: {
+                    HStack {
+                        Text("Staples (\(viewModel.stapleItems.count))")
+                        Spacer()
+                        Button(viewModel.stapleAllSelected ? "Deselect" : "Select All") {
+                            viewModel.toggleSelectSection(viewModel.stapleSelectableIds, allSelected: viewModel.stapleAllSelected)
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                    }
                 }
             }
 
+            // ── Today's List section (non-persistent pending items) ──
+            if !viewModel.todayItems.isEmpty {
+                Section {
+                    ForEach(viewModel.todayItems) { item in
+                        GroceryItemView(
+                            item: item,
+                            selected: viewModel.selectedIds.contains(item.id),
+                            onToggle: { _ in viewModel.toggleSelection(item.id) },
+                            onRemove: { id in Task { await viewModel.removeItem(id) } },
+                            onTogglePersistent: { id in Task { await viewModel.togglePersistent(id) } },
+                            onQuantityChange: { id, qty in Task { await viewModel.changeQuantity(id, quantity: qty) } },
+                            onSearch: { _ in searchItem = item }
+                        )
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.surfaceContainerLowest)
+                    }
+                } header: {
+                    HStack {
+                        Text("Today's List (\(viewModel.todayItems.count))")
+                        Spacer()
+                        Button(viewModel.todayAllSelected ? "Deselect" : "Select All") {
+                            viewModel.toggleSelectSection(viewModel.todaySelectableIds, allSelected: viewModel.todayAllSelected)
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                    }
+                }
+            }
+
+            // ── In Cart / Purchased section ──
             if !viewModel.purchasedItems.isEmpty {
                 Section {
                     ForEach(viewModel.purchasedItems) { item in
@@ -246,7 +287,30 @@ struct GroceryListView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(viewModel.selectedMappedCount == 0 || viewModel.isSubmittingCart)
+
+                // —— DELETE: Trash selected items
+                Button {
+                    showDeleteConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 48, height: 48)
+                        .background(Color.red.opacity(0.85))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
+        }
+        .confirmationDialog(
+            "Delete \(viewModel.selectedPendingCount) selected item\(viewModel.selectedPendingCount == 1 ? "" : "s")?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                Task { await viewModel.deleteSelected() }
+            }
+            Button("Cancel", role: .cancel) { }
         }
     }
 
