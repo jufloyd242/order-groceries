@@ -8,6 +8,8 @@ struct ItemSearchView: View {
     let item: UIListItem
     /// Called when the user has successfully saved a product preference — parent should reload.
     var onSaved: (() -> Void)?
+    /// Called (before dismiss) when the user chooses "Add to Cart" — parent should cart the item.
+    var onAddToCart: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var query: String
@@ -16,12 +18,14 @@ struct ItemSearchView: View {
     @State private var errorMessage: String?
     @State private var savedMessage: String?
 
-    init(item: UIListItem, onSaved: (() -> Void)? = nil) {
+    init(item: UIListItem, onSaved: (() -> Void)? = nil, onAddToCart: (() -> Void)? = nil) {
         self.item = item
         self.onSaved = onSaved
-        // Use clean product identity for search — normalizedText has quantity/unit stripped.
-        // Fall back to rawText only if normalization hasn't run yet.
-        _query = State(initialValue: item.preference?.displayName ?? item.normalizedText ?? item.rawText)
+        self.onAddToCart = onAddToCart
+        // Always search with normalized raw text — ensures clean API query.
+        // Preference display name is a specific product name (e.g. "Kroger Large Eggs 18ct")
+        // which is too narrow for discovery. normalizedText is the generic term (e.g. "egg").
+        _query = State(initialValue: item.normalizedText ?? item.rawText)
     }
 
     var body: some View {
@@ -61,9 +65,12 @@ struct ItemSearchView: View {
 
     private var resultsList: some View {
         List(results) { product in
-            ProductRow(product: product, savedMessage: $savedMessage) {
-                Task { await savePreference(product: product) }
-            }
+            ProductRow(
+                product: product,
+                savedMessage: $savedMessage,
+                onSave: { Task { await savePreference(product: product) } },
+                onAddToCart: { Task { await savePreference(product: product, thenAddToCart: true) } }
+            )
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
         }
@@ -132,7 +139,7 @@ struct ItemSearchView: View {
 
     // MARK: - Save preference
 
-    private func savePreference(product: ProductMatch) async {
+    private func savePreference(product: ProductMatch, thenAddToCart: Bool = false) async {
         struct PreferenceBody: Encodable {
             let listItemId: String
             let productId: String
@@ -170,7 +177,14 @@ struct ItemSearchView: View {
                     genericName: item.normalizedText ?? item.rawText
                 )
             )
-            withAnimation { savedMessage = "Saved: \(product.name)" }
+
+            if thenAddToCart {
+                onAddToCart?()
+                withAnimation { savedMessage = "Added to cart: \(product.name)" }
+            } else {
+                withAnimation { savedMessage = "Saved: \(product.name)" }
+            }
+
             // Dismiss after brief confirmation toast, signal parent to reload
             try? await Task.sleep(nanoseconds: 1_400_000_000)
             onSaved?()
@@ -187,6 +201,7 @@ private struct ProductRow: View {
     let product: ProductMatch
     @Binding var savedMessage: String?
     let onSave: () -> Void
+    var onAddToCart: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -223,14 +238,30 @@ private struct ProductRow: View {
 
             Spacer()
 
-            Button {
-                onSave()
-            } label: {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Color.primary)
+            // Action buttons: save preference (checkmark) + add to cart
+            VStack(spacing: 8) {
+                Button {
+                    onSave()
+                } label: {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Save as preferred product")
+
+                if let addToCart = onAddToCart {
+                    Button {
+                        addToCart()
+                    } label: {
+                        Image(systemName: "cart.badge.plus")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Save and add to cart")
+                }
             }
-            .buttonStyle(.plain)
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)

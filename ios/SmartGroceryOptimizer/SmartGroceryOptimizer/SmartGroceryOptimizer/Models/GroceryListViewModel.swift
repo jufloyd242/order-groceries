@@ -174,7 +174,7 @@ final class GroceryListViewModel: ObservableObject {
         if item.status == .pending || item.status == .matched || item.status == .compared {
             await markPurchased(item.id)
         } else if item.status == .purchased {
-            await markPending(item.id)
+            await revertCartItem(item.id)
         }
     }
 
@@ -204,6 +204,28 @@ final class GroceryListViewModel: ObservableObject {
             }
         } catch {
             errorMessage = "Failed to update item: \(error.localizedDescription)"
+        }
+    }
+
+    /// Move a carted item back to the active list (pending) and reopen its Todoist task.
+    func revertCartItem(_ id: String) async {
+        struct Body: Encodable { let listItemIds: [String] }
+        struct EmptyResponse: Decodable { let success: Bool? }
+        // Optimistic
+        if let idx = items.firstIndex(where: { $0.id == id }) {
+            items[idx] = items[idx].withStatus(.pending)
+        }
+        do {
+            let _: EmptyResponse = try await APIClient.shared.post(
+                "/api/list/revert-cart",
+                body: Body(listItemIds: [id])
+            )
+        } catch {
+            // Rollback
+            if let idx = items.firstIndex(where: { $0.id == id }) {
+                items[idx] = items[idx].withStatus(.carted)
+            }
+            errorMessage = "Failed to put item back: \(error.localizedDescription)"
         }
     }
 
@@ -273,6 +295,82 @@ final class GroceryListViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Add to Cart (single item)
+
+    /// Move a single pending item to carted status via API PATCH.
+    func addToCart(_ id: String) async {
+        // Optimistic: update local status
+        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        let snapshot = items[idx]
+        items[idx] = items[idx].withStatus(.carted)
+        selectedIds.remove(id)
+
+        struct Body: Encodable { let id: String; let updates: Updates
+            struct Updates: Encodable { let status: String }
+        }
+        struct Resp: Decodable { let success: Bool? }
+
+        do {
+            let _: Resp = try await APIClient.shared.patch(
+                "/api/list",
+                body: Body(id: id, updates: .init(status: "carted"))
+            )
+        } catch {
+            // Roll back
+            items[idx] = snapshot
+            errorMessage = "Failed to add item to cart."
+        }
+    }
+
+    // MARK: - Clear Preference
+
+    /// Remove the saved product preference for a list item, making it unmapped again.
+    /// Preferences are keyed by generic_name (= normalized_text), not by a FK id.
+    func clearPreference(_ id: String) async {
+        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        let snapshot = items[idx]
+
+        // Preferences have no mapping — bail if there's nothing to clear
+        guard snapshot.preference != nil else { return }
+
+        // Optimistic: clear local preference immediately
+        items[idx] = UIListItem(
+            id: snapshot.id,
+            rawText: snapshot.rawText,
+            normalizedText: snapshot.normalizedText,
+            quantity: snapshot.quantity,
+            unit: snapshot.unit,
+            quantityType: snapshot.quantityType,
+            minRequiredAmount: snapshot.minRequiredAmount,
+            minRequiredUnit: snapshot.minRequiredUnit,
+            source: snapshot.source,
+            todoistTaskId: snapshot.todoistTaskId,
+            preferenceId: nil,
+            status: snapshot.status,
+            createdAt: snapshot.createdAt,
+            purchasedAt: snapshot.purchasedAt,
+            persistent: snapshot.persistent,
+            department: snapshot.department,
+            preference: nil
+        )
+
+        // Delete by generic_name (= normalized_text) — preferences have no direct FK on list_items
+        let genericName = snapshot.normalizedText ?? snapshot.rawText
+        struct Body: Encodable { let generic_name: String }
+        struct Resp: Decodable { let success: Bool? }
+
+        do {
+            let _: Resp = try await APIClient.shared.delete(
+                "/api/preferences",
+                body: Body(generic_name: genericName)
+            )
+        } catch {
+            // Roll back
+            items[idx] = snapshot
+            errorMessage = "Failed to clear preference."
+        }
+    }
+
     // MARK: - Delete Purchased
 
     /// Delete all items in the "purchased" / "carted" section.
@@ -310,6 +408,23 @@ final class GroceryListViewModel: ObservableObject {
             return
         }
 
+        await performCartSubmit(toSubmit)
+    }
+
+    /// Submit a specific set of item IDs — used by CartView's per-row selection.
+    /// `quantityOverrides` are local-only overrides from the CartView stepper.
+    func submitCartSelection(_ ids: Set<String>, quantityOverrides: [String: Int] = [:]) async {
+        let toSubmit = items.filter { ids.contains($0.id) && $0.preference?.preferredUpc != nil }
+
+        guard !toSubmit.isEmpty else {
+            errorMessage = "No selected items have a product mapped."
+            return
+        }
+
+        await performCartSubmit(toSubmit, quantityOverrides: quantityOverrides)
+    }
+
+    private func performCartSubmit(_ toSubmit: [UIListItem], quantityOverrides: [String: Int] = [:]) async {
         isSubmittingCart = true
         defer { isSubmittingCart = false }
 
@@ -318,13 +433,14 @@ final class GroceryListViewModel: ObservableObject {
 
         let cartItems = toSubmit.compactMap { item -> CartItem? in
             guard let upc = item.preference?.preferredUpc else { return nil }
+            let qty = quantityOverrides[item.id] ?? Int(item.quantity ?? 1)
             return CartItem(
                 id: "kroger-\(upc)",
                 store: .kroger,
                 name: item.preference?.displayName ?? item.rawText,
                 brand: "",
                 price: 0,
-                quantity: Int(item.quantity ?? 1),
+                quantity: qty,
                 imageUrl: item.preference?.imageUrl,
                 size: item.unit ?? "",
                 upc: upc,
@@ -337,8 +453,18 @@ final class GroceryListViewModel: ObservableObject {
         do {
             let result: SubmitResponse = try await APIClient.shared.post("/api/cart/submit", body: SubmitBody(items: cartItems))
             if result.success {
+                // Mark submitted items as purchased + auto-recreate staples
+                let submittedListItemIds = toSubmit.map(\.id)
+                struct CleanupBody: Encodable { let listItemIds: [String] }
+                struct CleanupResponse: Decodable { let success: Bool?; let staplesRestored: Int? }
+                let _: CleanupResponse = try await APIClient.shared.post(
+                    "/api/list/cleanup-on-cart",
+                    body: CleanupBody(listItemIds: submittedListItemIds)
+                )
+
                 successMessage = "Added \(cartItems.count) item(s) to your King Soopers cart."
                 deselectAll()
+                await loadItems() // Refresh to show staples recreated as pending
             } else {
                 let errs = result.results?.flatMap(\.errors).joined(separator: "\n") ?? "Unknown error"
                 errorMessage = errs
@@ -443,12 +569,17 @@ final class GroceryListViewModel: ObservableObject {
         !todaySelectableIds.isEmpty && todaySelectableIds.allSatisfy { selectedIds.contains($0) }
     }
 
-    /// First selected, unmapped pending item — used to open the search sheet for batch flow
+    /// First selected, unmapped pending item — kept for legacy compatibility
     var firstUnmappedSelectedItem: UIListItem? {
         pendingItems.first {
             selectedIds.contains($0.id) &&
             $0.preference?.preferredUpc == nil &&
             $0.preference?.preferredAsin == nil
         }
+    }
+
+    /// First selected pending item regardless of mapping state — used by search-first batch bar.
+    var firstSelectedPendingItem: UIListItem? {
+        pendingItems.first { selectedIds.contains($0.id) }
     }
 }

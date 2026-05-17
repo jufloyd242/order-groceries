@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createRequestClient } from '@/lib/supabase/server';
+import { createRequestClient } from '@/lib/supabase/server';
 import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/lib/matching/normalize';
 import { parseItemText } from '@/lib/ai/gemini';
 import { closeTask } from '@/lib/todoist/client';
@@ -131,10 +131,15 @@ export async function POST(request: NextRequest) {
       // Always one row per input. clean_name has quantity/unit stripped.
       // For measurements: quantity=1 (buy 1 package), min_required_amount holds the threshold.
       // For counts: quantity=N (e.g. "5 apples" → qty=5, name="apple").
+      // Ensure quantity is a whole number >= 1
+      const safeQuantity = normalized.quantity != null
+        ? Math.max(1, Math.round(normalized.quantity))
+        : null;
+
       const row: Record<string, unknown> = {
         raw_text: trimmed,
         normalized_text: normalized.clean_name,
-        quantity: normalized.quantity,
+        quantity: safeQuantity,
         unit: normalized.unit,
         source: item.source || 'manual',
         todoist_task_id: item.todoist_task_id || null,
@@ -189,8 +194,7 @@ export async function POST(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
     const { id, updates } = body;

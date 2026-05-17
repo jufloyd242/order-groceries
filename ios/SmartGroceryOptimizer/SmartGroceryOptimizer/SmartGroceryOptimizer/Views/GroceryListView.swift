@@ -45,7 +45,15 @@ struct GroceryListView: View {
             }
             .sheet(item: $searchItem) { item in
                 ItemSearchView(item: item, onSaved: {
-                    Task { await viewModel.loadItems() }
+                    Task {
+                        await viewModel.loadItems()
+                        // Auto-advance: open search for next unmapped selected item
+                        if let next = viewModel.firstUnmappedSelectedItem, next.id != item.id {
+                            searchItem = next
+                        }
+                    }
+                }, onAddToCart: {
+                    Task { await viewModel.addToCart(item.id) }
                 })
             }
             .sheet(isPresented: $showCart) {
@@ -104,7 +112,9 @@ struct GroceryListView: View {
                             onRemove: { id in Task { await viewModel.removeItem(id) } },
                             onTogglePersistent: { id in Task { await viewModel.togglePersistent(id) } },
                             onQuantityChange: { id, qty in Task { await viewModel.changeQuantity(id, quantity: qty) } },
-                            onSearch: { _ in searchItem = item }
+                            onSearch: { _ in searchItem = item },
+                            onAddToCart: { id in Task { await viewModel.addToCart(id) } },
+                            onClearPreference: { id in Task { await viewModel.clearPreference(id) } }
                         )
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
@@ -133,7 +143,9 @@ struct GroceryListView: View {
                             onRemove: { id in Task { await viewModel.removeItem(id) } },
                             onTogglePersistent: { id in Task { await viewModel.togglePersistent(id) } },
                             onQuantityChange: { id, qty in Task { await viewModel.changeQuantity(id, quantity: qty) } },
-                            onSearch: { _ in searchItem = item }
+                            onSearch: { _ in searchItem = item },
+                            onAddToCart: { id in Task { await viewModel.addToCart(id) } },
+                            onClearPreference: { id in Task { await viewModel.clearPreference(id) } }
                         )
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
@@ -202,33 +214,16 @@ struct GroceryListView: View {
         .refreshable { await viewModel.loadItems() }
     }
 
-    // MARK: - Dynamic Batch Action Bar
-    // Shows "Search & Compare" as primary when any selected item is unmapped.
-    // Shows "Add to [Store]" as primary only when all selected items are mapped.
+    // MARK: - Batch Action Bar
+    // Two primary actions: Search unmapped items, Add mapped items to cart.
+    // Plus trash for batch delete.
 
     private var batchActionBar: some View {
         VStack(spacing: 0) {
-            // Unmapped warning strip
-            if viewModel.selectedUnmappedCount > 0 && viewModel.selectedMappedCount > 0 {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.yellow)
-                        .font(.system(size: 11))
-                    Text("\(viewModel.selectedUnmappedCount) item\(viewModel.selectedUnmappedCount == 1 ? "" : "s") still need search")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.onSurface)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.yellow.opacity(0.12))
-            }
-
             HStack(spacing: 0) {
-                // —— PRIMARY: Search & Compare — visible when any unmapped item is selected
+                // —— Search: visible when any unmapped items are selected
                 if viewModel.selectedUnmappedCount > 0 {
                     Button {
-                        // Open search for the first unmapped selected item
                         if let item = viewModel.firstUnmappedSelectedItem {
                             searchItem = item
                         }
@@ -236,15 +231,15 @@ struct GroceryListView: View {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
                             VStack(alignment: .leading, spacing: 1) {
-                                Text("Search & Compare")
+                                Text("Search")
                                     .font(.subheadline.bold())
-                                Text("\(viewModel.selectedUnmappedCount) item\(viewModel.selectedUnmappedCount == 1 ? "" : "s") need a product")
+                                Text("\(viewModel.selectedUnmappedCount) need\(viewModel.selectedUnmappedCount == 1 ? "s" : "") search")
                                     .font(.caption)
                                     .opacity(0.8)
                             }
                             Spacer()
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 13)
                         .frame(maxWidth: .infinity)
                         .background(Color.secondary)
@@ -254,48 +249,48 @@ struct GroceryListView: View {
                     .buttonStyle(.plain)
                 }
 
-                // —— CART: Add to [Store] — always shown, disabled unless mapped items selected
-                Button {
-                    guard viewModel.selectedMappedCount > 0 else { return }
-                    Task { await viewModel.submitCart() }
-                } label: {
-                    HStack(spacing: 8) {
-                        if viewModel.isSubmittingCart {
-                            ProgressView().tint(Color.onPrimary)
-                        } else {
-                            Image(systemName: "cart.badge.plus")
+                // —— Add to Cart: visible when any mapped items are selected
+                if viewModel.selectedMappedCount > 0 {
+                    Button {
+                        Task {
+                            // Batch add all selected mapped items to cart
+                            for item in viewModel.pendingItems where viewModel.selectedIds.contains(item.id) {
+                                let hasMapping = item.preference?.preferredUpc != nil || item.preference?.preferredAsin != nil
+                                if hasMapping {
+                                    await viewModel.addToCart(item.id)
+                                }
+                            }
                         }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(viewModel.selectedMappedCount > 0
-                                ? "Add \(viewModel.selectedMappedCount) to \(viewModel.storeName)"
-                                : "Map items to add to cart")
-                                .font(.subheadline.bold())
-                            if viewModel.selectedUnmappedCount == 0 && viewModel.selectedMappedCount > 0 {
-                                Text("All selected items mapped")
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "cart.badge.plus")
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Add to Cart")
+                                    .font(.subheadline.bold())
+                                Text("\(viewModel.selectedMappedCount) item\(viewModel.selectedMappedCount == 1 ? "" : "s") ready")
                                     .font(.caption)
                                     .opacity(0.8)
                             }
+                            Spacer()
                         }
-                        Spacer()
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 13)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.primary)
+                        .foregroundStyle(Color.onPrimary)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-                    .frame(maxWidth: .infinity)
-                    .background(viewModel.selectedMappedCount > 0 ? Color.primary : Color.primary.opacity(0.45))
-                    .foregroundStyle(Color.onPrimary)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(viewModel.selectedMappedCount == 0 || viewModel.isSubmittingCart)
 
-                // —— DELETE: Trash selected items
+                // —— Trash selected items
                 Button {
                     showDeleteConfirm = true
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Color.white)
-                        .frame(width: 48, height: 48)
+                        .frame(width: 56, height: 56)
                         .background(Color.red.opacity(0.85))
                         .contentShape(Rectangle())
                 }

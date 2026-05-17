@@ -186,6 +186,11 @@ export function normalizeItem(
     }
   }
 
+  // Enforce whole-number quantity >= 1 for count items
+  if (quantity !== null && quantityType !== 'measurement') {
+    quantity = Math.max(1, Math.round(quantity));
+  }
+
   // Step 3: For MEASUREMENT quantities, convert to base unit.
   // Also reset quantity to 1 — the user is buying 1 package that satisfies
   // the threshold, not 0.5 of a package (the fraction lives in min_required_amount).

@@ -5,9 +5,9 @@ import SwiftUI
 
 extension Color {
     // MARK: Surfaces
-    static let surface              = Color(hex: "#f8f9fa")
+    static let surface              = Color(hex: "#F9FAFB")
     static let surfaceDim           = Color(hex: "#d9dadb")
-    static let surfaceBright        = Color(hex: "#f8f9fa")
+    static let surfaceBright        = Color(hex: "#F9FAFB")
     static let surfaceContainerLowest = Color(hex: "#ffffff")
     static let surfaceContainerLow  = Color(hex: "#f3f4f5")
     static let surfaceContainer     = Color(hex: "#edeeef")
@@ -15,19 +15,19 @@ extension Color {
     static let surfaceContainerHighest = Color(hex: "#e1e3e4")
 
     // MARK: On Surface
-    static let onSurface            = Color(hex: "#191c1d")
-    static let onSurfaceVariant     = Color(hex: "#404943")
+    static let onSurface            = Color(hex: "#111827")
+    static let onSurfaceVariant     = Color(hex: "#374151")
     static let outline              = Color(hex: "#707973")
     static let outlineVariant       = Color(hex: "#bfc9c1")
 
-    // MARK: Primary — forest green
-    static let primary              = Color(hex: "#0f5238")
-    static let onPrimary            = Color(hex: "#ffffff")
-    static let primaryContainer     = Color(hex: "#2d6a4f")
+    // MARK: Primary — emerald green
+    static let primary              = Color(hex: "#10B981")
+    static let onPrimary            = Color(hex: "#111827")
+    static let primaryContainer     = Color(hex: "#059669")
     static let onPrimaryContainer   = Color(hex: "#a8e7c5")
 
-    // MARK: Secondary — mid green
-    static let secondary            = Color(hex: "#2b694d")
+    // MARK: Secondary — deep emerald
+    static let secondary            = Color(hex: "#047857")
     static let secondaryContainer   = Color(hex: "#b0f1cc")
 
     // MARK: Tertiary — zesty orange

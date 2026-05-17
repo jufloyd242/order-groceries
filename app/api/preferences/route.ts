@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createRequestClient } from '@/lib/supabase/server';
+import { createRequestClient } from '@/lib/supabase/server';
 import { NewProductPreference } from '@/types';
 
 /**
@@ -83,26 +83,28 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
-    const id = body.id;
+    const { id, generic_name } = body;
 
-    if (!id) {
+    if (!id && !generic_name) {
       return NextResponse.json(
-        { success: false, error: 'id is required' },
+        { success: false, error: 'id or generic_name is required' },
         { status: 400 }
       );
     }
 
-    const { error } = await supabase.from('product_preferences').delete().eq('id', id);
+    let query = supabase.from('product_preferences').delete();
+    if (id) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('generic_name', (generic_name as string).toLowerCase().trim());
+    }
+    const { error } = await query;
     if (error) throw error;
 
-    return NextResponse.json({
-      success: true,
-      removed: 1,
-    });
+    return NextResponse.json({ success: true, removed: 1 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

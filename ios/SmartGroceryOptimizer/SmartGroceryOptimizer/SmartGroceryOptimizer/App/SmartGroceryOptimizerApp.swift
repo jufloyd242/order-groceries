@@ -8,6 +8,7 @@ struct SmartGroceryOptimizerApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(authManager)
+                .preferredColorScheme(.light)  // Always light — matches web dashboard
         }
     }
 }

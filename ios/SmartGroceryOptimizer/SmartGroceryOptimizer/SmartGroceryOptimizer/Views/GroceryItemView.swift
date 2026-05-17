@@ -17,6 +17,8 @@ struct GroceryItemView: View {
     var onQuantityChange: ((String, Int) -> Void)?
     var onSkip: ((String) -> Void)?
     var onSearch: ((String) -> Void)?
+    var onAddToCart: ((String) -> Void)?
+    var onClearPreference: ((String) -> Void)?
 
     private var isCarted: Bool { item.status == .carted }
     private var isPurchased: Bool { item.status == .purchased }
@@ -46,8 +48,8 @@ struct GroceryItemView: View {
             thumbnailView
 
             // ── Text block ──
-            // Unmapped item: tap anywhere on the body → open search (discovery-first)
-            // Mapped item: tap anywhere on the body → toggle selection
+            // Unmapped: tap → search (discovery-first)
+            // Mapped: tap → toggle selection, long-press → context menu
             VStack(alignment: .leading, spacing: 2) {
                 nameRow
                 if mappingDiffers {
@@ -82,8 +84,31 @@ struct GroceryItemView: View {
                     // Unmapped → discovery-first: open search
                     onSearch?(item.id)
                 } else {
-                    // Mapped → toggle selection for cart
+                    // Mapped → toggle selection for batch operations
                     onToggle?(item.id)
+                }
+            }
+            .contextMenu {
+                if !isLocked && !skipped && !isUnmapped {
+                    Button {
+                        onAddToCart?(item.id)
+                    } label: {
+                        Label("Add to Cart", systemImage: "cart.badge.plus")
+                    }
+
+                    Button {
+                        onSearch?(item.id)
+                    } label: {
+                        Label("Re-search Products", systemImage: "magnifyingglass")
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        onClearPreference?(item.id)
+                    } label: {
+                        Label("Delete Preference", systemImage: "xmark.circle")
+                    }
                 }
             }
 
