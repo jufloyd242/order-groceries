@@ -68,6 +68,11 @@ export async function getClientCredentialsToken(): Promise<string> {
 /**
  * Build the Kroger OAuth2 Authorization Code URL.
  * Used for cart operations that require user-specific auth.
+ *
+ * NOTE: We construct the URL manually instead of using URLSearchParams because
+ * URLSearchParams encodes `:` as `%3A` (e.g. `cart.basic%3Awrite`).
+ * Kroger's OAuth server does not decode `%3A` in scope values and rejects
+ * the request immediately — the user never sees a login page.
  */
 export function getAuthorizationUrl(redirectUri: string): string {
   const clientId = process.env.KROGER_CLIENT_ID;
@@ -75,14 +80,13 @@ export function getAuthorizationUrl(redirectUri: string): string {
     throw new Error('KROGER_CLIENT_ID must be set in .env.local');
   }
 
-  const params = new URLSearchParams({
-    scope: 'cart.basic:write product.compact',
-    response_type: 'code',
-    client_id: clientId,
-    redirect_uri: redirectUri,
-  });
+  const scope = 'cart.basic:write product.compact';
 
-  return `${KROGER_API_BASE}/connect/oauth2/authorize?${params.toString()}`;
+  return `${KROGER_API_BASE}/connect/oauth2/authorize`
+    + `?scope=${encodeURIComponent(scope).replace(/%3A/gi, ':')}`
+    + `&response_type=code`
+    + `&client_id=${encodeURIComponent(clientId)}`
+    + `&redirect_uri=${encodeURIComponent(redirectUri)}`;
 }
 
 /**
