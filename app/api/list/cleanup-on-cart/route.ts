@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestClient } from '@/lib/supabase/server';
 import { closeTask } from '@/lib/todoist/client';
 
 /**
@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, purchased: 0, todoistClosed: 0, staplesRestored: 0 });
     }
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // 1. Fetch full item data (need persistent flag + preference link for staple recreation)

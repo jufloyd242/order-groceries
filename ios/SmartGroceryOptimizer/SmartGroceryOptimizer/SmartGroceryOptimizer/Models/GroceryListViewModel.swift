@@ -15,6 +15,9 @@ final class GroceryListViewModel: ObservableObject {
     @Published private(set) var isSubmittingCart = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
+    /// Set when an Amazon cart URL needs to be opened in-browser (avoids Universal
+    /// Link interception by the Amazon app which can't process cart-add parameters).
+    @Published var pendingAmazonCartUrl: URL? = nil
 
     /// IDs of items the user has locally checked to go in the cart
     @Published var selectedIds: Set<String> = [] {
@@ -506,11 +509,13 @@ final class GroceryListViewModel: ObservableObject {
                     parts.append("Added \(krogerCount) item(s) to your King Soopers cart.")
                 }
 
-                // Amazon items: open "Add to Cart" URL in Safari
+                // Amazon items: open cart URL in in-app browser (SFSafariViewController)
+                // so Universal Links don't route to the Amazon app, which ignores cart params.
                 if hasAmazonItems, let amazonUrl = result.amazonCartUrl,
                    let url = URL(string: amazonUrl) {
-                    parts.append("\(cartItems.filter { $0.store == .amazon }.count) Amazon item(s) opening in Safari.")
-                    await MainActor.run { UIApplication.shared.open(url) }
+                    let count = cartItems.filter { $0.store == .amazon }.count
+                    parts.append("\(count) Amazon item(s) opening in browser — tap Add to Cart.")
+                    pendingAmazonCartUrl = url
                 } else if hasAmazonItems {
                     parts.append("Amazon items: add manually on amazon.com.")
                 }

@@ -256,12 +256,22 @@ struct CartView: View {
     // MARK: - Submit bar
 
     private var submitBar: some View {
-        Button {
+        // Determine which stores are represented in the current selection
+        let selectedItems = viewModel.cartedItems.filter { selectedCartIds.contains($0.id) }
+        let hasKroger = selectedItems.contains { $0.preference?.preferredUpc != nil }
+        let hasAmazon = selectedItems.contains { $0.preference?.preferredAsin != nil }
+        let storeLabel: String = {
+            switch (hasKroger, hasAmazon) {
+            case (true, true):  return "\(viewModel.storeName) + Amazon"
+            case (true, false): return viewModel.storeName
+            case (false, true): return "Amazon"
+            default:            return "cart"
+            }
+        }()
+
+        return Button {
             // Pre-check: if any selected items are Kroger and account isn't linked, show alert
-            let hasKrogerItems = viewModel.cartedItems
-                .filter { selectedCartIds.contains($0.id) }
-                .contains { $0.preference?.preferredUpc != nil }
-            if hasKrogerItems && !authManager.isKrogerLinked {
+            if hasKroger && !authManager.isKrogerLinked {
                 showLinkAlert = true
                 return
             }
@@ -282,7 +292,7 @@ struct CartView: View {
                     ? "Submitting…"
                     : selectedCartIds.isEmpty
                         ? "Select items to submit"
-                        : "Submit \(selectedCartIds.count) to \(viewModel.storeName)")
+                        : "Submit \(selectedCartIds.count) to \(storeLabel)")
                     .font(.subheadline.bold())
             }
             .frame(maxWidth: .infinity)

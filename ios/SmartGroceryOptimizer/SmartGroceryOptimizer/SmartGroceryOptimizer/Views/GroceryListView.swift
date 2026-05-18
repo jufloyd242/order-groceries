@@ -67,6 +67,16 @@ struct GroceryListView: View {
                     openSettingsAfterCartDismiss = true
                 })
             }
+            // Amazon cart URL — open in SFSafariViewController so Universal Links
+            // don't route to the Amazon app (which ignores /gp/aws/cart/add.html params)
+            .sheet(isPresented: Binding(
+                get: { viewModel.pendingAmazonCartUrl != nil },
+                set: { if !$0 { viewModel.pendingAmazonCartUrl = nil } }
+            )) {
+                if let url = viewModel.pendingAmazonCartUrl {
+                    SafariView(url: url)
+                }
+            }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } }

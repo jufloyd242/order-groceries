@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
 
     // ── King Soopers submission ──────────────────────────────
     if (krogerItems.length > 0) {
-      const token = await getKrogerAccessToken(supabase);
+      const token = await getKrogerAccessToken(supabase, user.id);
+      console.log(`[cart/submit] user=${user.id} krogerItems=${krogerItems.length} tokenFound=${!!token}`);
 
       if (!token) {
         const redirectUri =
@@ -66,15 +67,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Amazon URL-based cart ──────────────────────────────────
+    // Amazon has no URL that adds items to a user's personal cart.
+    // /gp/aws/cart/add.html creates a separate "Associates cart" and breaks after
+    // auth redirects. Best UX: open the product page so the user taps "Add to Cart".
     let amazonCartUrl: string | null = null;
     if (amazonItems.length > 0) {
       const amazonItemsWithAsin = amazonItems.filter((i) => i.asin);
       if (amazonItemsWithAsin.length > 0) {
-        const params = amazonItemsWithAsin.map((item, idx) => {
-          const n = idx + 1;
-          return `ASIN.${n}=${encodeURIComponent(item.asin!)}&Quantity.${n}=${item.quantity}`;
-        });
-        amazonCartUrl = `https://www.amazon.com/gp/aws/cart/add.html?${params.join('&')}`;
+        const firstAsin = amazonItemsWithAsin[0].asin!;
+        amazonCartUrl = `https://www.amazon.com/dp/${encodeURIComponent(firstAsin)}`;
         results.push({
           store: 'amazon',
           success: true,
@@ -123,9 +124,11 @@ export async function POST(request: NextRequest) {
     // If any store needs OAuth, surface it at the top level
     const needsAuth = results.find((r) => r.authUrl);
     if (needsAuth) {
+      // Return 200 (not 401) so iOS can decode the results array and show
+      // the "Not authenticated" message + re-link prompt. A 401 is swallowed
+      // by APIClient before the body is parsed.
       return NextResponse.json(
-        { success: false, results, submittedIds, authUrl: needsAuth.authUrl },
-        { status: 401 }
+        { success: false, results, submittedIds, authUrl: needsAuth.authUrl }
       );
     }
 

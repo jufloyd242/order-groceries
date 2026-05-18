@@ -363,6 +363,7 @@ struct SettingsView: View {
             "kroger_store_name": loc.displayName,
             "default_zip_code": zipCode,
         ])
+        locations = []
     }
 
     private func saveTodoistProject() async {

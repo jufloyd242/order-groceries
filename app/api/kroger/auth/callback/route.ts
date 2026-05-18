@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForToken } from '@/lib/kroger/auth';
 import { saveKrogerAuth } from '@/lib/kroger/token_manager';
-import { createClient, createRequestClient } from '@/lib/supabase/server';
+import { createClient, createRequestClient, createServiceClient } from '@/lib/supabase/server';
+
+// Matches a Supabase UUID used as the OAuth state param in the new iOS flow.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * GET /api/kroger/auth/callback
@@ -21,12 +24,20 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get('error');
     const state = searchParams.get('state'); // iOS passes the Supabase JWT here
 
-    // Authenticate: prefer state-carried JWT (iOS), fall back to session cookie (web)
-    let supabase: Awaited<ReturnType<typeof createClient>>;
+    // Authenticate the callback — three cases:
+    //   UUID state  → new iOS flow: state is the Supabase userId embedded by /authorize
+    //   eyJ* state  → legacy iOS flow: state is the raw Supabase JWT (kept for old builds)
+    //   no state    → web browser: use cookie-based session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let supabase: any;
     let user: { id: string } | null = null;
 
-    if (state && state.startsWith('eyJ')) {
-      // state contains the Supabase JWT — build a synthetic request to validate it
+    if (state && UUID_RE.test(state)) {
+      // New iOS: /authorize embedded the userId as state — use service role to act on their behalf
+      supabase = createServiceClient();
+      user = { id: state };
+    } else if (state && state.startsWith('eyJ')) {
+      // Legacy iOS: state is the Supabase JWT
       const syntheticRequest = new Request(request.url, {
         headers: { Authorization: `Bearer ${state}` },
       });
@@ -67,7 +78,7 @@ export async function GET(request: NextRequest) {
     const tokenResult = await exchangeCodeForToken(code, redirectUri);
 
     // 2. Save token for this user
-    await saveKrogerAuth(supabase, tokenResult);
+    await saveKrogerAuth(supabase, tokenResult, user.id);
 
     // 3. Redirect — iOS gets a custom scheme URL that ASWebAuthenticationSession intercepts
     return isIOS

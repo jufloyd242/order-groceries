@@ -397,19 +397,11 @@ final class AuthManager: ObservableObject {
             "/api/kroger/auth/authorize"
         )
 
-        // 2. Append the user's JWT as `state` so the callback can auth without cookies.
-        //    IMPORTANT: do NOT use URLComponents to re-parse + re-encode the server URL.
-        //    URLSearchParams (TypeScript) encodes spaces as `+` in query values, but
-        //    URLComponents.queryItems does NOT decode `+` as space. Re-serialising via
-        //    URLComponents would turn `+` → `%2B`, corrupting the OAuth scope and causing
-        //    Kroger to reject the request before showing the login page.
-        let jwt = accessToken ?? ""
-        // JWTs use base64url (alphanumeric + `-` `_` `.`) — no encoding needed.
-        let separator = authorizeResponse.authUrl.contains("?") ? "&" : "?"
-        let krogerAuthUrlString = authorizeResponse.authUrl + "\(separator)state=\(jwt)"
-
-        guard let krogerAuthURL = URL(string: krogerAuthUrlString) else {
-            throw APIError.serverError(message: "Failed to build Kroger auth URL")
+        // 2. The server already embedded state=<userId> in the URL — open it as-is.
+        //    Do NOT re-parse or append anything; any modification risks corrupting the
+        //    URL encoding and causing Kroger to reject the request silently.
+        guard let krogerAuthURL = URL(string: authorizeResponse.authUrl) else {
+            throw APIError.serverError(message: "Invalid Kroger auth URL from server")
         }
 
         // 3. Open Kroger login in a browser sheet

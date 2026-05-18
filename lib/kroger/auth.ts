@@ -73,8 +73,13 @@ export async function getClientCredentialsToken(): Promise<string> {
  * URLSearchParams encodes `:` as `%3A` (e.g. `cart.basic%3Awrite`).
  * Kroger's OAuth server does not decode `%3A` in scope values and rejects
  * the request immediately — the user never sees a login page.
+ *
+ * @param state  Optional short opaque value passed through to the callback.
+ *               For iOS, the authorize route passes the user's UUID (36 chars).
+ *               Do NOT pass a full JWT — Kroger rejects oversized state params,
+ *               causing silent auth failure before the login page ever renders.
  */
-export function getAuthorizationUrl(redirectUri: string): string {
+export function getAuthorizationUrl(redirectUri: string, state?: string): string {
   const clientId = process.env.KROGER_CLIENT_ID;
   if (!clientId) {
     throw new Error('KROGER_CLIENT_ID must be set in .env.local');
@@ -82,11 +87,17 @@ export function getAuthorizationUrl(redirectUri: string): string {
 
   const scope = 'cart.basic:write product.compact';
 
-  return `${KROGER_API_BASE}/connect/oauth2/authorize`
+  let url = `${KROGER_API_BASE}/connect/oauth2/authorize`
     + `?scope=${encodeURIComponent(scope).replace(/%3A/gi, ':')}`
     + `&response_type=code`
     + `&client_id=${encodeURIComponent(clientId)}`
     + `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+  if (state) {
+    url += `&state=${encodeURIComponent(state)}`;
+  }
+
+  return url;
 }
 
 /**
