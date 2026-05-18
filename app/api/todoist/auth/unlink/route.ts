@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRequestClient } from '@/lib/supabase/server';
 
 /**
- * DELETE /api/kroger/auth/unlink
- * Removes the current user's stored Kroger OAuth tokens.
+ * DELETE /api/todoist/auth/unlink
+ * Removes the current user's stored Todoist OAuth token.
  */
 export async function DELETE(request: NextRequest) {
   const { supabase, user } = await createRequestClient(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { error } = await supabase
-    .from('kroger_auth')
+    .from('todoist_auth')
     .delete()
     .eq('user_id', user.id);
 

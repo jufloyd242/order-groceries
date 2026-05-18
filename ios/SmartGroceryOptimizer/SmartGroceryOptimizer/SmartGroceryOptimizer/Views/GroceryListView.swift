@@ -12,6 +12,7 @@ struct GroceryListView: View {
     @FocusState private var addFieldFocused: Bool
     @State private var showSettings = false
     @State private var showCart = false
+    @State private var openSettingsAfterCartDismiss = false
     @State private var showDeleteConfirm = false
     @State private var searchItem: UIListItem?
 
@@ -56,8 +57,15 @@ struct GroceryListView: View {
                     Task { await viewModel.addToCart(item.id) }
                 })
             }
-            .sheet(isPresented: $showCart) {
-                CartView(viewModel: viewModel)
+            .sheet(isPresented: $showCart, onDismiss: {
+                if openSettingsAfterCartDismiss {
+                    openSettingsAfterCartDismiss = false
+                    showSettings = true
+                }
+            }) {
+                CartView(viewModel: viewModel, onLinkKroger: {
+                    openSettingsAfterCartDismiss = true
+                })
             }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },

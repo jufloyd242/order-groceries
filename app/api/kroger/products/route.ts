@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchProducts } from '@/lib/kroger/products';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/kroger/products?q=milk&locationId=02900520
@@ -10,8 +10,7 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);

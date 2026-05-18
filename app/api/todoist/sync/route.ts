@@ -12,14 +12,32 @@ import { createRequestClient } from '@/lib/supabase/server';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { user } = await createRequestClient(request);
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const items = await pullGroceryItems();
+    // Try per-user OAuth token first, fall back to env token
+    let todoistToken: string | undefined;
+    const { data: auth } = await supabase
+      .from('todoist_auth')
+      .select('access_token')
+      .maybeSingle();
+    if (auth?.access_token) {
+      todoistToken = auth.access_token;
+    }
+
+    // Get project name from user settings
+    const { data: projectSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'todoist_project_name')
+      .maybeSingle();
+    const projectName = projectSetting?.value || undefined;
+
+    const items = await pullGroceryItems(todoistToken, projectName);
 
     return NextResponse.json({
       success: true,
-      project_name: process.env.TODOIST_PROJECT_NAME || 'groceries',
+      project_name: projectName || process.env.TODOIST_PROJECT_NAME || 'groceries',
       count: items.length,
       items: items.map((item) => ({
         raw_text: item.content,

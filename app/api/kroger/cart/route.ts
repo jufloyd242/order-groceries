@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addItemsToCart, CartItemInput } from '@/lib/kroger/cart';
 import { getKrogerAccessToken, KrogerAuthExpiredError } from '@/lib/kroger/token_manager';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/kroger/cart
@@ -11,8 +11,7 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

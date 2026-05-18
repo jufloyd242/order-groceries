@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
     const updates = Object.entries(body).map(([key, value]) => ({
       key,
       value: String(value),
+      user_id: user.id,
       updated_at: new Date().toISOString(),
     }));
 
@@ -68,8 +69,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, updated: 0 });
     }
 
-    // onConflict: 'key' — the table PK is just `key` (no user_id column)
-    const { error } = await supabase.from('app_settings').upsert(updates, { onConflict: 'key' });
+    // onConflict: 'user_id,key' — composite unique constraint after migration 002_multi_user
+    const { error } = await supabase.from('app_settings').upsert(updates, { onConflict: 'user_id,key' });
 
     if (error) throw error;
 

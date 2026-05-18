@@ -45,12 +45,19 @@ export async function POST(request: NextRequest) {
     if (updateError) throw updateError;
 
     // 3. Close corresponding Todoist tasks (swallow individual errors)
+    // Fetch per-user Todoist token if available
+    const { data: todoistAuth } = await supabase
+      .from('todoist_auth')
+      .select('access_token')
+      .maybeSingle();
+    const todoistToken = todoistAuth?.access_token || undefined;
+
     let todoistClosed = 0;
     const closePromises = listItems
       .filter((i) => i.todoist_task_id)
       .map(async (item) => {
         try {
-          await closeTask(item.todoist_task_id!);
+          await closeTask(item.todoist_task_id!, todoistToken);
           todoistClosed++;
         } catch (err) {
           console.error(`Failed to close Todoist task ${item.todoist_task_id}:`, err);
