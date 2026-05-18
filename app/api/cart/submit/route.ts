@@ -65,15 +65,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Amazon placeholder ───────────────────────────────────
+    // ── Amazon URL-based cart ──────────────────────────────────
+    let amazonCartUrl: string | null = null;
     if (amazonItems.length > 0) {
-      results.push({
-        store: 'amazon',
-        success: false,
-        itemsAdded: 0,
-        itemsFailed: amazonItems.length,
-        errors: ['Amazon cart integration coming soon — please add items manually.'],
-      });
+      const amazonItemsWithAsin = amazonItems.filter((i) => i.asin);
+      if (amazonItemsWithAsin.length > 0) {
+        const params = amazonItemsWithAsin.map((item, idx) => {
+          const n = idx + 1;
+          return `ASIN.${n}=${encodeURIComponent(item.asin!)}&Quantity.${n}=${item.quantity}`;
+        });
+        amazonCartUrl = `https://www.amazon.com/gp/aws/cart/add.html?${params.join('&')}`;
+        results.push({
+          store: 'amazon',
+          success: true,
+          itemsAdded: amazonItemsWithAsin.length,
+          itemsFailed: amazonItems.length - amazonItemsWithAsin.length,
+          errors: [],
+        });
+      } else {
+        results.push({
+          store: 'amazon',
+          success: false,
+          itemsAdded: 0,
+          itemsFailed: amazonItems.length,
+          errors: ['No ASINs found for Amazon items — please add manually.'],
+        });
+      }
     }
 
     const submittedIds = results
@@ -116,6 +133,7 @@ export async function POST(request: NextRequest) {
       success: results.length === 0 || results.every((r) => r.success),
       results,
       submittedIds,
+      amazonCartUrl,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createTask } from '@/lib/todoist/client';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createRequestClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/todoist/task
@@ -13,8 +13,7 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await createRequestClient(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { content } = await request.json();
@@ -26,7 +25,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const todoist_task_id = await createTask(content.trim());
+    // Fetch per-user Todoist token if available
+    const { data: todoistAuth } = await supabase
+      .from('todoist_auth')
+      .select('access_token')
+      .maybeSingle();
+    const todoistToken = todoistAuth?.access_token || undefined;
+
+    const todoist_task_id = await createTask(content.trim(), todoistToken);
 
     return NextResponse.json({ success: true, todoist_task_id });
   } catch (error) {

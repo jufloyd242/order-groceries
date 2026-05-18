@@ -42,12 +42,19 @@ export async function POST(request: NextRequest) {
     if (updateError) throw updateError;
 
     // 3. Reopen Todoist tasks in the background (swallow individual errors)
+    // Fetch per-user Todoist token if available
+    const { data: todoistAuth } = await supabase
+      .from('todoist_auth')
+      .select('access_token')
+      .maybeSingle();
+    const todoistToken = todoistAuth?.access_token || undefined;
+
     let todoistReopened = 0;
     const reopenPromises = listItems
       .filter((item) => item.todoist_task_id)
       .map(async (item) => {
         try {
-          await reopenTask(item.todoist_task_id!);
+          await reopenTask(item.todoist_task_id!, todoistToken);
           todoistReopened++;
         } catch (err) {
           console.error(`Failed to reopen Todoist task ${item.todoist_task_id}:`, err);

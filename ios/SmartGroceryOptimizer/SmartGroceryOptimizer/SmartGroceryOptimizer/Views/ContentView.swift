@@ -13,9 +13,6 @@ struct ContentView: View {
                 LoginView()
             }
         }
-        .task {
-            await authManager.refreshSession()
-        }
     }
 
     private var splashView: some View {

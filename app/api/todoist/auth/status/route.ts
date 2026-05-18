@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createRequestClient } from '@/lib/supabase/server';
 
 /**
- * GET /api/kroger/auth/status
- * Returns whether the current user has linked their King Soopers account.
+ * GET /api/todoist/auth/status
+ * Returns whether the current user has linked their Todoist account.
  */
 export async function GET(request: NextRequest) {
   const { supabase, user } = await createRequestClient(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data, error } = await supabase
-    .from('kroger_auth')
+    .from('todoist_auth')
     .select('updated_at')
     .maybeSingle();
 

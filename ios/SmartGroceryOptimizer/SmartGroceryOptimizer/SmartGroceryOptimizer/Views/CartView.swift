@@ -7,6 +7,7 @@ import SwiftUI
 
 struct CartView: View {
     @ObservedObject var viewModel: GroceryListViewModel
+    @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     /// Per-row selection — controls which items are included in the submission.
@@ -16,6 +17,9 @@ struct CartView: View {
     /// Local-only quantity overrides — NOT persisted to DB.
     /// Only used at submission time. Resets when cart sheet is dismissed.
     @State private var localQuantities: [String: Int] = [:]
+
+    /// Shows the "link KS account" alert when submitting without a linked account
+    @State private var showLinkAlert = false
 
     var body: some View {
         NavigationStack {
@@ -56,6 +60,15 @@ struct CartView: View {
             }
             .onAppear { syncSelection() }
             .onChange(of: viewModel.cartedItems) { _, _ in syncSelection() }
+            .alert("King Soopers Account Required", isPresented: $showLinkAlert) {
+                Button("Link Account") {
+                    dismiss()
+                    // SettingsView will be opened by the user from the tab bar
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Link your King Soopers account in Settings to submit items to your cart.")
+            }
         }
     }
 
@@ -240,6 +253,14 @@ struct CartView: View {
 
     private var submitBar: some View {
         Button {
+            // Pre-check: if any selected items are Kroger and account isn't linked, show alert
+            let hasKrogerItems = viewModel.cartedItems
+                .filter { selectedCartIds.contains($0.id) }
+                .contains { $0.preference?.preferredUpc != nil }
+            if hasKrogerItems && !authManager.isKrogerLinked {
+                showLinkAlert = true
+                return
+            }
             Task {
                 await viewModel.submitCartSelection(selectedCartIds, quantityOverrides: localQuantities)
                 if viewModel.errorMessage == nil {

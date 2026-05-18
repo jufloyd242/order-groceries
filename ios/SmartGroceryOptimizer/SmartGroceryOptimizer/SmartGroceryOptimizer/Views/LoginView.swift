@@ -6,6 +6,7 @@ struct LoginView: View {
     #if targetEnvironment(simulator)
     @State private var showDevLogin = false
     @State private var devToken = ""
+    @State private var devLoginError: String?
     #endif
 
     private var isMisconfigured: Bool { !APIConfig.isConfigured }
@@ -127,14 +128,26 @@ struct LoginView: View {
                         .font(.system(.caption, design: .monospaced))
                         .frame(minHeight: 140)
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.outline))
+                    if let devLoginError {
+                        Text(devLoginError)
+                            .font(.caption)
+                            .foregroundStyle(Color.error)
+                    }
                     Button("Apply Token & Sign In") {
                         let t = devToken.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !t.isEmpty else { return }
-                        authManager.setSessionFromToken(t)
-                        showDevLogin = false
+                        devLoginError = nil
+                        Task {
+                            do {
+                                try await authManager.setSessionFromToken(t)
+                                showDevLogin = false
+                            } catch {
+                                devLoginError = "Token invalid or expired. Get a fresh token from the web app.\n\(error.localizedDescription)"
+                            }
+                        }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(devToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(devToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || authManager.isLoading)
                     Spacer()
                 }
                 .padding()

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 // MARK: - GroceryListViewModel
 // Fetches and manages the shopping list from GET /api/list.
@@ -69,7 +70,8 @@ final class GroceryListViewModel: ObservableObject {
                 }
             }
         } catch APIError.unauthenticated {
-            errorMessage = "Session expired — please sign in again."
+            // Token expired mid-session — navigate back to login
+            AuthManager.shared.sessionExpired()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -135,7 +137,8 @@ final class GroceryListViewModel: ObservableObject {
             await loadItems()
             successMessage = "Synced \(syncResult.count) item(s) from Todoist."
         } catch APIError.unauthenticated {
-            errorMessage = "Session expired — please sign in again."
+            // Token expired — navigate back to login
+            AuthManager.shared.sessionExpired()
         } catch {
             errorMessage = "Todoist sync failed: \(error.localizedDescription)"
         }
@@ -414,7 +417,11 @@ final class GroceryListViewModel: ObservableObject {
     /// Submit a specific set of item IDs — used by CartView's per-row selection.
     /// `quantityOverrides` are local-only overrides from the CartView stepper.
     func submitCartSelection(_ ids: Set<String>, quantityOverrides: [String: Int] = [:]) async {
-        let toSubmit = items.filter { ids.contains($0.id) && $0.preference?.preferredUpc != nil }
+        // Include both Kroger (UPC) and Amazon (ASIN) items
+        let toSubmit = items.filter {
+            ids.contains($0.id) &&
+            ($0.preference?.preferredUpc != nil || $0.preference?.preferredAsin != nil)
+        }
 
         guard !toSubmit.isEmpty else {
             errorMessage = "No selected items have a product mapped."
@@ -429,30 +436,61 @@ final class GroceryListViewModel: ObservableObject {
         defer { isSubmittingCart = false }
 
         struct SubmitBody: Encodable { let items: [CartItem] }
-        struct SubmitResponse: Decodable { let success: Bool; let results: [StoreSubmitResult]? }
+        struct SubmitResponse: Decodable { let success: Bool; let results: [StoreSubmitResult]?; let amazonCartUrl: String? }
 
-        let cartItems = toSubmit.compactMap { item -> CartItem? in
-            guard let upc = item.preference?.preferredUpc else { return nil }
+        let cartItems: [CartItem] = toSubmit.compactMap { item in
             let qty = quantityOverrides[item.id] ?? Int(item.quantity ?? 1)
-            return CartItem(
-                id: "kroger-\(upc)",
-                store: .kroger,
-                name: item.preference?.displayName ?? item.rawText,
-                brand: "",
-                price: 0,
-                quantity: qty,
-                imageUrl: item.preference?.imageUrl,
-                size: item.unit ?? "",
-                upc: upc,
-                asin: nil,
-                listItemId: item.id,
-                addedAt: Date().timeIntervalSince1970 * 1000
-            )
+            let pref = item.preference
+
+            if let upc = pref?.preferredUpc {
+                // Kroger item — submitted via cart API
+                return CartItem(
+                    id: "kroger-\(upc)",
+                    store: .kroger,
+                    name: pref?.displayName ?? item.rawText,
+                    brand: "",
+                    price: 0,
+                    quantity: qty,
+                    imageUrl: pref?.imageUrl,
+                    size: item.unit ?? "",
+                    upc: upc,
+                    asin: nil,
+                    listItemId: item.id,
+                    addedAt: Date().timeIntervalSince1970 * 1000
+                )
+            } else if let asin = pref?.preferredAsin {
+                // Amazon item — backend returns a "coming soon" message for these
+                return CartItem(
+                    id: "amazon-\(asin)",
+                    store: .amazon,
+                    name: pref?.displayName ?? item.rawText,
+                    brand: "",
+                    price: 0,
+                    quantity: qty,
+                    imageUrl: pref?.imageUrl,
+                    size: item.unit ?? "",
+                    upc: nil,
+                    asin: asin,
+                    listItemId: item.id,
+                    addedAt: Date().timeIntervalSince1970 * 1000
+                )
+            }
+            return nil
         }
 
         do {
             let result: SubmitResponse = try await APIClient.shared.post("/api/cart/submit", body: SubmitBody(items: cartItems))
-            if result.success {
+
+            let krogerResult = result.results?.first { $0.store == .kroger }
+            let amazonResult = result.results?.first { $0.store == .amazon }
+
+            let krogerSucceeded = krogerResult?.success == true
+            let krogerCount = krogerResult?.itemsAdded ?? 0
+            let hasKrogerItems = cartItems.contains { $0.store == .kroger }
+            let hasAmazonItems = cartItems.contains { $0.store == .amazon }
+
+            // Kroger succeeded (or no Kroger items) → run cleanup & show success
+            if krogerSucceeded || !hasKrogerItems {
                 // Mark submitted items as purchased + auto-recreate staples
                 let submittedListItemIds = toSubmit.map(\.id)
                 struct CleanupBody: Encodable { let listItemIds: [String] }
@@ -462,12 +500,36 @@ final class GroceryListViewModel: ObservableObject {
                     body: CleanupBody(listItemIds: submittedListItemIds)
                 )
 
-                successMessage = "Added \(cartItems.count) item(s) to your King Soopers cart."
+                // Build success message
+                var parts: [String] = []
+                if krogerCount > 0 {
+                    parts.append("Added \(krogerCount) item(s) to your King Soopers cart.")
+                }
+
+                // Amazon items: open "Add to Cart" URL in Safari
+                if hasAmazonItems, let amazonUrl = result.amazonCartUrl,
+                   let url = URL(string: amazonUrl) {
+                    parts.append("\(cartItems.filter { $0.store == .amazon }.count) Amazon item(s) opening in Safari.")
+                    await MainActor.run { UIApplication.shared.open(url) }
+                } else if hasAmazonItems {
+                    parts.append("Amazon items: add manually on amazon.com.")
+                }
+
+                successMessage = parts.isEmpty
+                    ? "\(cartItems.count) item(s) submitted."
+                    : parts.joined(separator: " ")
                 deselectAll()
-                await loadItems() // Refresh to show staples recreated as pending
+                await loadItems()
             } else {
-                let errs = result.results?.flatMap(\.errors).joined(separator: "\n") ?? "Unknown error"
-                errorMessage = errs
+                // Kroger failed — surface the error
+                var msgs: [String] = []
+                if let krogerErrs = krogerResult?.errors, !krogerErrs.isEmpty {
+                    msgs.append(contentsOf: krogerErrs)
+                }
+                if let amazonErrs = amazonResult?.errors, !amazonErrs.isEmpty {
+                    msgs.append(contentsOf: amazonErrs)
+                }
+                errorMessage = msgs.joined(separator: "\n")
             }
         } catch {
             errorMessage = "Cart submission failed: \(error.localizedDescription)"
