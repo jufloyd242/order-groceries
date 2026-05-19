@@ -11,6 +11,27 @@ enum StoreId: String, Codable, CaseIterable {
     case instacart
 }
 
+// MARK: - Store Capabilities
+// Mirrors: types/index.ts — StoreCapability, STORE_CAPABILITIES
+
+/// Declares what a store can do — drives UX branching and cleanup logic
+struct StoreCapability {
+    let canSearch: Bool
+    let canPrice: Bool
+    /// Store supports programmatic add-to-cart (e.g. Kroger API)
+    let canAutoCart: Bool
+    /// Items must be manually added by user via browser link
+    let requiresUserHandoff: Bool
+}
+
+/// Source-of-truth capability declarations per store
+let storeCapabilities: [StoreId: StoreCapability] = [
+    .kroger: StoreCapability(canSearch: true, canPrice: true, canAutoCart: true, requiresUserHandoff: false),
+    .amazon: StoreCapability(canSearch: true, canPrice: true, canAutoCart: false, requiresUserHandoff: true),
+    .walmart: StoreCapability(canSearch: false, canPrice: false, canAutoCart: false, requiresUserHandoff: true),
+    .instacart: StoreCapability(canSearch: false, canPrice: false, canAutoCart: false, requiresUserHandoff: true),
+]
+
 /// Shopping list item status
 enum ItemStatus: String, Codable {
     case pending

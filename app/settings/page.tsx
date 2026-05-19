@@ -9,10 +9,6 @@ interface KrogerStatus {
   linked_at: string | null;
 }
 
-interface AmazonStatus {
-  configured: boolean;
-}
-
 interface StoreLocation {
   locationId: string;
   name: string;
@@ -29,7 +25,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
   const [krogerStatus, setKrogerStatus] = useState<KrogerStatus | null>(null);
-  const [amazonStatus, setAmazonStatus] = useState<AmazonStatus | null>(null);
   const [unlinking, setUnlinking] = useState(false);
 
   // Location picker state (local only — not persisted as a setting)
@@ -61,18 +56,16 @@ export default function SettingsPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const [sRes, aRes, kRes, amRes] = await Promise.all([
+      const [sRes, aRes, kRes] = await Promise.all([
         fetch('/api/settings'),
         fetch('/api/abbreviations'),
         fetch('/api/kroger/auth/status'),
-        fetch('/api/amazon/status'),
       ]);
-      const [sData, aData, kData, amData] = await Promise.all([sRes.json(), aRes.json(), kRes.json(), amRes.json()]);
+      const [sData, aData, kData] = await Promise.all([sRes.json(), aRes.json(), kRes.json()]);
 
       if (sData.success) setSettings(sData.settings);
       if (aData.success) setAbbreviations(aData.abbreviations);
       if (!kData.error) setKrogerStatus(kData);
-      if (!amData.error) setAmazonStatus(amData);
     } catch (err) {
       console.error('Failed to load settings:', err);
     } finally {
@@ -250,48 +243,16 @@ export default function SettingsPage() {
         )}
       </section>
 
-      {/* ── Amazon Account ───────────────────────────────────── */}
+      {/* ── Amazon (Comparison Only) ────────────────────────── */}
       <section className="bg-white rounded-2xl border border-[#edeeef] shadow-[0_2px_15px_-3px_rgba(45,106,79,0.08)] p-6 mb-6">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '4px' }}>📦 Amazon</h2>
-            <p style={{ fontSize: '0.85rem', color: '#707973' }}>
-              Amazon search is powered by SerpApi. Cart push opens a pre-filled Amazon cart link in your browser — no account linking required.
-            </p>
-          </div>
-          <div style={{
-            padding: '4px 12px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            background: amazonStatus?.configured ? 'rgba(74, 222, 128, 0.12)' : 'rgba(248,113,113,0.1)',
-            border: `1px solid ${amazonStatus?.configured ? 'rgba(74, 222, 128, 0.35)' : 'rgba(248,113,113,0.3)'}`,
-            color: amazonStatus?.configured ? '#4ade80' : '#f87171',
-            flexShrink: 0,
-          }}>
-            {amazonStatus?.configured ? '● Search Ready' : '○ Search Not Configured'}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ padding: '12px 14px', borderRadius: '8px', background: '#f8f9fa', border: '1px solid #edeeef', fontSize: '0.85rem', color: '#404943' }}>
-            <div style={{ fontWeight: 600, marginBottom: '6px' }}>🔍 Product Search</div>
-            {amazonStatus?.configured ? (
-              <span style={{ color: '#4ade80', fontWeight: 500 }}>✓ SerpApi key is configured — Amazon search is active.</span>
-            ) : (
-              <span style={{ color: '#f87171' }}>
-                SerpApi key is not set. Add <code style={{ background: '#f0f0f0', padding: '1px 5px', borderRadius: '4px' }}>SERPAPI_API_KEY</code> to your <code style={{ background: '#f0f0f0', padding: '1px 5px', borderRadius: '4px' }}>.env.local</code> and restart the server.
-              </span>
-            )}
-          </div>
-
-          <div style={{ padding: '12px 14px', borderRadius: '8px', background: '#f8f9fa', border: '1px solid #edeeef', fontSize: '0.85rem', color: '#404943' }}>
-            <div style={{ fontWeight: 600, marginBottom: '6px' }}>🛒 Cart Push</div>
-            <span style={{ color: '#707973' }}>
-              When you push Amazon items to cart, the app opens a pre-filled cart link in your browser.
-              Make sure you&apos;re <strong>logged into amazon.com</strong> first — items will be added automatically when you open the link.
-            </span>
-          </div>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '4px' }}>📦 Amazon</h2>
+        <p style={{ fontSize: '0.85rem', color: '#707973', marginBottom: '12px' }}>
+          Amazon is used for price comparison only. No account linking required.
+        </p>
+        <div style={{ padding: '12px 14px', borderRadius: '8px', background: '#f8f9fa', border: '1px solid #edeeef', fontSize: '0.85rem', color: '#404943' }}>
+          <span style={{ color: '#707973' }}>
+            Product search powered by SerpApi. When you choose an Amazon product, the app will open the product page in your browser so you can add it to your cart manually.
+          </span>
         </div>
       </section>
 

@@ -258,20 +258,27 @@ struct CartView: View {
     private var submitBar: some View {
         // Determine which stores are represented in the current selection
         let selectedItems = viewModel.cartedItems.filter { selectedCartIds.contains($0.id) }
-        let hasKroger = selectedItems.contains { $0.preference?.preferredUpc != nil }
-        let hasAmazon = selectedItems.contains { $0.preference?.preferredAsin != nil }
-        let storeLabel: String = {
-            switch (hasKroger, hasAmazon) {
-            case (true, true):  return "\(viewModel.storeName) + Amazon"
-            case (true, false): return viewModel.storeName
-            case (false, true): return "Amazon"
-            default:            return "cart"
+        let krogerCount = selectedItems.filter { $0.preference?.preferredUpc != nil }.count
+        let amazonCount = selectedItems.filter { $0.preference?.preferredAsin != nil }.count
+
+        // Build capability-aware label
+        let buttonLabel: String = {
+            if selectedCartIds.isEmpty { return "Select items to submit" }
+            switch (krogerCount > 0, amazonCount > 0) {
+            case (true, true):
+                return "Submit \(krogerCount) to \(viewModel.storeName) · Open \(amazonCount) on Amazon"
+            case (true, false):
+                return "Submit \(krogerCount) to \(viewModel.storeName)"
+            case (false, true):
+                return "Open \(amazonCount) on Amazon"
+            default:
+                return "Select items to submit"
             }
         }()
 
         return Button {
             // Pre-check: if any selected items are Kroger and account isn't linked, show alert
-            if hasKroger && !authManager.isKrogerLinked {
+            if krogerCount > 0 && !authManager.isKrogerLinked {
                 showLinkAlert = true
                 return
             }
@@ -286,13 +293,9 @@ struct CartView: View {
                 if viewModel.isSubmittingCart {
                     ProgressView().tint(Color.onPrimary)
                 } else {
-                    Image(systemName: "cart.badge.checkmark")
+                    Image(systemName: krogerCount > 0 ? "cart.badge.checkmark" : "safari")
                 }
-                Text(viewModel.isSubmittingCart
-                    ? "Submitting…"
-                    : selectedCartIds.isEmpty
-                        ? "Select items to submit"
-                        : "Submit \(selectedCartIds.count) to \(storeLabel)")
+                Text(viewModel.isSubmittingCart ? "Submitting…" : buttonLabel)
                     .font(.subheadline.bold())
             }
             .frame(maxWidth: .infinity)

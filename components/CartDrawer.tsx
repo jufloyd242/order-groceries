@@ -66,33 +66,10 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
     }
   }
 
-  async function handleAmazonSubmit() {
-    const amazonItems = byStore.amazon;
-    if (amazonItems.length === 0) return;
-    setSubmitting('amazon');
-    setMessages([]);
-    try {
-      const result = await submitCart(amazonItems);
-      if (result.submittedIds.length > 0) {
-        const listItemIds = amazonItems
-          .filter((i) => result.submittedIds.includes(i.id) && i.listItemId)
-          .map((i) => i.listItemId!);
-        removeItems(result.submittedIds);
-        if (listItemIds.length > 0) {
-          await fetch('/api/list/cleanup-on-cart', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ listItemIds }),
-          }).catch(console.error);
-          window.dispatchEvent(new CustomEvent('list-status-changed'));
-        }
-      }
-      const r = result.results.find((r) => r.store === 'amazon');
-      setMessages([r?.success ? `✅ Amazon: ${r.itemsAdded} item(s) added` : '❌ Amazon cart integration coming soon.']);
-    } catch {
-      setMessages(['Failed to submit to Amazon. Please try again.']);
-    } finally {
-      setSubmitting(null);
-    }
+  async function handleAmazonOpen(item: CartItem) {
+    if (!item.asin) return;
+    const url = `https://www.amazon.com/dp/${encodeURIComponent(item.asin)}`;
+    window.open(url, '_blank', 'noopener');
   }
 
   return (
@@ -198,14 +175,23 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
               </button>
             )}
             {byStore.amazon.length > 0 && (
-              <button
-                onClick={handleAmazonSubmit}
-                disabled={submitting !== null}
-                className="w-full py-3.5 mb-2 font-bold text-sm rounded-xl text-on-surface border-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.98]"
-                style={{ backgroundColor: '#FF9900', color: '#111' }}
-              >
-                {submitting === 'amazon' ? 'Submitting…' : `Push to Amazon (${byStore.amazon.length})`}
-              </button>
+              <div className="mb-2">
+                <p className="text-xs text-on-surface-variant mb-1.5 px-1">
+                  Amazon items — open each to add to your cart:
+                </p>
+                {byStore.amazon.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleAmazonOpen(item)}
+                    className="w-full py-2 px-3 mb-1 text-sm font-medium rounded-lg text-[#111] border-none cursor-pointer transition-all duration-150 hover:opacity-80 active:scale-[0.98] text-left flex items-center gap-2"
+                    style={{ backgroundColor: 'rgba(255, 153, 0, 0.15)' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#FF9900' }}>open_in_new</span>
+                    <span className="truncate flex-1">{item.name}</span>
+                    {item.quantity > 1 && <span className="text-xs text-outline">×{item.quantity}</span>}
+                  </button>
+                ))}
+              </div>
             )}
             <button
               onClick={clearCart}

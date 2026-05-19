@@ -250,6 +250,37 @@ export interface CartPushResult {
 /** Supported store identifiers — extend this union to add new stores */
 export type StoreId = 'kroger' | 'amazon' | 'walmart' | 'instacart';
 
+// ─── Store Capabilities ───────────────────────────────────────
+
+/** Declares what a store can do — drives UX branching and cleanup logic */
+export interface StoreCapability {
+  canSearch: boolean;
+  canPrice: boolean;
+  /** Store supports programmatic add-to-cart (e.g. Kroger API) */
+  canAutoCart: boolean;
+  /** Items must be manually added by user via browser link */
+  requiresUserHandoff: boolean;
+}
+
+/** Source-of-truth capability declarations per store */
+export const STORE_CAPABILITIES: Record<StoreId, StoreCapability> = {
+  kroger: { canSearch: true, canPrice: true, canAutoCart: true, requiresUserHandoff: false },
+  amazon: { canSearch: true, canPrice: true, canAutoCart: false, requiresUserHandoff: true },
+  walmart: { canSearch: false, canPrice: false, canAutoCart: false, requiresUserHandoff: true },
+  instacart: { canSearch: false, canPrice: false, canAutoCart: false, requiresUserHandoff: true },
+};
+
+// ─── Amazon Handoff ───────────────────────────────────────────
+
+/** A single Amazon product link returned for user-assisted add-to-cart */
+export interface AmazonHandoffLink {
+  asin: string;
+  name: string;
+  url: string;
+  quantity: number;
+  listItemId?: string;
+}
+
 /** A single item in the unified cart */
 export interface CartItem {
   /** Unique key: `${store}-${productId}` */
@@ -279,6 +310,8 @@ export interface StoreSubmitResult {
   success: boolean;
   itemsAdded: number;
   itemsFailed: number;
+  /** Number of items prepared for user handoff (not auto-added) */
+  handoffReady?: number;
   errors: string[];
   /** If auth is required (e.g. Kroger OAuth), provide redirect URL */
   authUrl?: string;
@@ -287,7 +320,10 @@ export interface StoreSubmitResult {
 /** Full cart submission result */
 export interface CartSubmitResult {
   results: StoreSubmitResult[];
+  /** IDs of items that were programmatically added (auto-cart stores only) */
   submittedIds: string[];
+  /** Per-item Amazon links for user-assisted handoff */
+  amazonLinks?: AmazonHandoffLink[];
 }
 
 // ─── Store Service Interface ──────────────────────────────────

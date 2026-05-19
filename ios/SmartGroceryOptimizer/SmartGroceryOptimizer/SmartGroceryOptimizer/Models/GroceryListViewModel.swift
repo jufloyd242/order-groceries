@@ -15,9 +15,9 @@ final class GroceryListViewModel: ObservableObject {
     @Published private(set) var isSubmittingCart = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
-    /// Set when an Amazon cart URL needs to be opened in-browser (avoids Universal
-    /// Link interception by the Amazon app which can't process cart-add parameters).
-    @Published var pendingAmazonCartUrl: URL? = nil
+    /// Amazon handoff links — shown in AmazonHandoffView for user-assisted add-to-cart.
+    /// Set after cart submission when Amazon items are included.
+    @Published var pendingAmazonLinks: [AmazonHandoffLink] = []
 
     /// IDs of items the user has locally checked to go in the cart
     @Published var selectedIds: Set<String> = [] {
@@ -439,14 +439,18 @@ final class GroceryListViewModel: ObservableObject {
         defer { isSubmittingCart = false }
 
         struct SubmitBody: Encodable { let items: [CartItem] }
-        struct SubmitResponse: Decodable { let success: Bool; let results: [StoreSubmitResult]?; let amazonCartUrl: String? }
+        struct SubmitResponse: Decodable {
+            let success: Bool
+            let results: [StoreSubmitResult]?
+            let amazonLinks: [AmazonHandoffLink]?
+        }
 
         let cartItems: [CartItem] = toSubmit.compactMap { item in
             let qty = quantityOverrides[item.id] ?? Int(item.quantity ?? 1)
             let pref = item.preference
 
             if let upc = pref?.preferredUpc {
-                // Kroger item — submitted via cart API
+                // Kroger item — submitted via cart API (auto-cart)
                 return CartItem(
                     id: "kroger-\(upc)",
                     store: .kroger,
@@ -462,7 +466,7 @@ final class GroceryListViewModel: ObservableObject {
                     addedAt: Date().timeIntervalSince1970 * 1000
                 )
             } else if let asin = pref?.preferredAsin {
-                // Amazon item — backend returns a "coming soon" message for these
+                // Amazon item — server returns handoff links, not auto-added
                 return CartItem(
                     id: "amazon-\(asin)",
                     store: .amazon,
@@ -485,23 +489,28 @@ final class GroceryListViewModel: ObservableObject {
             let result: SubmitResponse = try await APIClient.shared.post("/api/cart/submit", body: SubmitBody(items: cartItems))
 
             let krogerResult = result.results?.first { $0.store == .kroger }
-            let amazonResult = result.results?.first { $0.store == .amazon }
 
             let krogerSucceeded = krogerResult?.success == true
             let krogerCount = krogerResult?.itemsAdded ?? 0
             let hasKrogerItems = cartItems.contains { $0.store == .kroger }
             let hasAmazonItems = cartItems.contains { $0.store == .amazon }
 
-            // Kroger succeeded (or no Kroger items) → run cleanup & show success
+            // Kroger succeeded (or no Kroger items) → cleanup Kroger items only
             if krogerSucceeded || !hasKrogerItems {
-                // Mark submitted items as purchased + auto-recreate staples
-                let submittedListItemIds = toSubmit.map(\.id)
-                struct CleanupBody: Encodable { let listItemIds: [String] }
-                struct CleanupResponse: Decodable { let success: Bool?; let staplesRestored: Int? }
-                let _: CleanupResponse = try await APIClient.shared.post(
-                    "/api/list/cleanup-on-cart",
-                    body: CleanupBody(listItemIds: submittedListItemIds)
-                )
+                // Only cleanup Kroger items immediately — Amazon items stay until
+                // user confirms via the handoff view
+                let krogerListItemIds = toSubmit
+                    .filter { $0.preference?.preferredUpc != nil }
+                    .map(\.id)
+
+                if !krogerListItemIds.isEmpty {
+                    struct CleanupBody: Encodable { let listItemIds: [String] }
+                    struct CleanupResponse: Decodable { let success: Bool?; let staplesRestored: Int? }
+                    let _: CleanupResponse = try await APIClient.shared.post(
+                        "/api/list/cleanup-on-cart",
+                        body: CleanupBody(listItemIds: krogerListItemIds)
+                    )
+                }
 
                 // Build success message
                 var parts: [String] = []
@@ -509,13 +518,10 @@ final class GroceryListViewModel: ObservableObject {
                     parts.append("Added \(krogerCount) item(s) to your King Soopers cart.")
                 }
 
-                // Amazon items: open cart URL in in-app browser (SFSafariViewController)
-                // so Universal Links don't route to the Amazon app, which ignores cart params.
-                if hasAmazonItems, let amazonUrl = result.amazonCartUrl,
-                   let url = URL(string: amazonUrl) {
-                    let count = cartItems.filter { $0.store == .amazon }.count
-                    parts.append("\(count) Amazon item(s) opening in browser — tap Add to Cart.")
-                    pendingAmazonCartUrl = url
+                // Amazon items: queue handoff links for user-assisted add-to-cart
+                if hasAmazonItems, let links = result.amazonLinks, !links.isEmpty {
+                    parts.append("\(links.count) Amazon item(s) ready — tap to open each.")
+                    pendingAmazonLinks = links
                 } else if hasAmazonItems {
                     parts.append("Amazon items: add manually on amazon.com.")
                 }
@@ -531,14 +537,36 @@ final class GroceryListViewModel: ObservableObject {
                 if let krogerErrs = krogerResult?.errors, !krogerErrs.isEmpty {
                     msgs.append(contentsOf: krogerErrs)
                 }
-                if let amazonErrs = amazonResult?.errors, !amazonErrs.isEmpty {
-                    msgs.append(contentsOf: amazonErrs)
-                }
                 errorMessage = msgs.joined(separator: "\n")
             }
         } catch {
             errorMessage = "Cart submission failed: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Amazon Handoff Confirmation
+
+    /// Called when user dismisses the AmazonHandoffView with confirmed items.
+    /// Runs cleanup (mark purchased, close Todoist tasks) only for confirmed listItemIds.
+    func confirmAmazonHandoff(_ confirmedListItemIds: [String]) async {
+        guard !confirmedListItemIds.isEmpty else { return }
+        struct CleanupBody: Encodable { let listItemIds: [String] }
+        struct CleanupResponse: Decodable { let success: Bool?; let staplesRestored: Int? }
+        do {
+            let _: CleanupResponse = try await APIClient.shared.post(
+                "/api/list/cleanup-on-cart",
+                body: CleanupBody(listItemIds: confirmedListItemIds)
+            )
+            await loadItems()
+        } catch {
+            print("[AmazonHandoff] Cleanup failed: \(error.localizedDescription)")
+        }
+        pendingAmazonLinks = []
+    }
+
+    /// Dismiss the Amazon handoff without confirming any items
+    func dismissAmazonHandoff() {
+        pendingAmazonLinks = []
     }
 
     // MARK: - Delete Selected (batch)

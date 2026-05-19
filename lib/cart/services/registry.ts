@@ -1,11 +1,9 @@
 import { CartItem, StoreId, StoreSubmitResult, CartSubmitResult } from '@/types';
 import { submitKrogerCart } from './kroger';
-import { submitAmazonCart } from './amazon';
 
-/** Map of store → submit function. Add new stores here. */
+/** Map of store → submit function. Only auto-cart capable stores belong here. */
 const storeServices: Partial<Record<StoreId, (items: CartItem[]) => Promise<StoreSubmitResult>>> = {
   kroger: submitKrogerCart,
-  amazon: submitAmazonCart,
 };
 
 /**

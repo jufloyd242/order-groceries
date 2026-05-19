@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { CartItem, StoreId, ProductMatch } from '@/types';
+import { CartItem, StoreId, ProductMatch, STORE_CAPABILITIES } from '@/types';
 
 const STORAGE_KEY = 'sgo_cart';
 
@@ -16,6 +16,10 @@ interface CartContextValue {
   clearCart: () => void;
   getByStore: () => { kroger: CartItem[]; amazon: CartItem[] };
   getStoreTotals: () => { kroger: number; amazon: number; total: number };
+  /** Items from stores that require user-assisted handoff (e.g. Amazon) */
+  getHandoffItems: () => CartItem[];
+  /** Items from stores with programmatic auto-cart (e.g. Kroger) */
+  getAutoCartItems: () => CartItem[];
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -134,11 +138,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return { kroger, amazon, total: kroger + amazon };
   }, [items]);
 
+  const getHandoffItems = useCallback(() => {
+    return items.filter((i) => STORE_CAPABILITIES[i.store]?.requiresUserHandoff);
+  }, [items]);
+
+  const getAutoCartItems = useCallback(() => {
+    return items.filter((i) => STORE_CAPABILITIES[i.store]?.canAutoCart);
+  }, [items]);
+
   return (
     <CartContext.Provider value={{
       items, itemCount: items.length,
       addItem, removeItem, removeItems, updateQuantity,
       clearStore, clearCart, getByStore, getStoreTotals,
+      getHandoffItems, getAutoCartItems,
     }}>
       {children}
     </CartContext.Provider>

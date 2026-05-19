@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getKrogerAccessToken } from '@/lib/kroger/token_manager';
 import { getAuthorizationUrl } from '@/lib/kroger/auth';
 import { addItemsToCart } from '@/lib/kroger/cart';
-import { CartItem, StoreSubmitResult } from '@/types';
+import { AmazonHandoffLink, CartItem, StoreSubmitResult } from '@/types';
 import { createRequestClient } from '@/lib/supabase/server';
 
 /**
  * POST /api/cart/submit
  * Submit cart items to their respective stores.
- * Handles Kroger natively; Amazon is a placeholder.
+ * - Kroger: programmatic add-to-cart via API (auto-cart).
+ * - Amazon: returns per-item handoff links for user-assisted add-to-cart.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -66,21 +67,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Amazon URL-based cart ──────────────────────────────────
-    // Amazon has no URL that adds items to a user's personal cart.
-    // /gp/aws/cart/add.html creates a separate "Associates cart" and breaks after
-    // auth redirects. Best UX: open the product page so the user taps "Add to Cart".
-    let amazonCartUrl: string | null = null;
+    // ── Amazon: guided handoff (no programmatic cart API) ──────
+    // Generate per-item product page links for user-assisted add-to-cart.
+    // Amazon items are NOT included in submittedIds — they are not "added" until
+    // the user confirms in the handoff UI.
+    let amazonLinks: AmazonHandoffLink[] = [];
     if (amazonItems.length > 0) {
       const amazonItemsWithAsin = amazonItems.filter((i) => i.asin);
       if (amazonItemsWithAsin.length > 0) {
-        const firstAsin = amazonItemsWithAsin[0].asin!;
-        amazonCartUrl = `https://www.amazon.com/dp/${encodeURIComponent(firstAsin)}`;
+        amazonLinks = amazonItemsWithAsin.map((item) => ({
+          asin: item.asin!,
+          name: item.name,
+          url: `https://www.amazon.com/dp/${encodeURIComponent(item.asin!)}`,
+          quantity: item.quantity,
+          listItemId: item.listItemId,
+        }));
         results.push({
           store: 'amazon',
           success: true,
-          itemsAdded: amazonItemsWithAsin.length,
-          itemsFailed: amazonItems.length - amazonItemsWithAsin.length,
+          itemsAdded: 0,
+          itemsFailed: 0,
+          handoffReady: amazonItemsWithAsin.length,
           errors: [],
         });
       } else {
@@ -94,8 +101,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Only auto-cart stores (Kroger) contribute to submittedIds
     const submittedIds = results
-      .filter((r) => r.success)
+      .filter((r) => r.success && r.itemsAdded > 0)
       .flatMap((r) => items.filter((i) => i.store === r.store).map((i) => i.id));
 
     // ── Record price history for successfully submitted items ─
@@ -136,7 +144,7 @@ export async function POST(request: NextRequest) {
       success: results.length === 0 || results.every((r) => r.success),
       results,
       submittedIds,
-      amazonCartUrl,
+      amazonLinks: amazonLinks.length > 0 ? amazonLinks : undefined,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

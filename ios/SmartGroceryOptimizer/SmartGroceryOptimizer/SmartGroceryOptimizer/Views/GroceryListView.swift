@@ -67,15 +67,13 @@ struct GroceryListView: View {
                     openSettingsAfterCartDismiss = true
                 })
             }
-            // Amazon cart URL — open in SFSafariViewController so Universal Links
-            // don't route to the Amazon app (which ignores /gp/aws/cart/add.html params)
+            // Amazon handoff queue — shown after cart submission when Amazon items exist.
+            // User opens each product in SFSafariViewController and confirms.
             .sheet(isPresented: Binding(
-                get: { viewModel.pendingAmazonCartUrl != nil },
-                set: { if !$0 { viewModel.pendingAmazonCartUrl = nil } }
+                get: { !viewModel.pendingAmazonLinks.isEmpty },
+                set: { if !$0 { viewModel.dismissAmazonHandoff() } }
             )) {
-                if let url = viewModel.pendingAmazonCartUrl {
-                    SafariView(url: url)
-                }
+                AmazonHandoffView(viewModel: viewModel)
             }
             .alert("Error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
