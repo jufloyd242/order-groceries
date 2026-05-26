@@ -1,0 +1,76 @@
+# Smart Grocery Optimizer — Cloud Build pipeline
+# Deploy: gcloud builds submit --config cloudbuild.yaml . --project=groceries-491721
+#
+# Prerequisites (one-time setup already done):
+#   - All sgo-* secrets exist in Secret Manager (us-central1)
+#   - Cloud Build SA has: secretmanager.secretAccessor, run.admin, iam.serviceAccountUser
+#   - Cloud Run compute SA has: secretmanager.secretAccessor
+#   - Artifact Registry repo: us-central1-docker.pkg.dev/groceries-491721/cloud-run-source-deploy
+
+substitutions:
+  _SERVICE:  smart-grocery-optimizer
+  _REGION:   us-central1
+  _PROJECT:  groceries-491721
+  _REPO:     cloud-run-source-deploy
+
+# Pull NEXT_PUBLIC_ secrets from Secret Manager at build time so they get baked
+# into the Next.js client bundle during `npm run build` inside Docker.
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/sgo-supabase-url/versions/latest
+      env: NEXT_PUBLIC_SUPABASE_URL
+    - versionName: projects/$PROJECT_ID/secrets/sgo-supabase-anon-key/versions/latest
+      env: NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+steps:
+  # 1. Build Docker image, injecting NEXT_PUBLIC_ vars as build-args
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    secretEnv: [NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY]
+    args:
+      - build
+      - --build-arg
+      - NEXT_PUBLIC_SUPABASE_URL=$$NEXT_PUBLIC_SUPABASE_URL
+      - --build-arg
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=$$NEXT_PUBLIC_SUPABASE_ANON_KEY
+      - -t
+      - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:$SHORT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:latest
+      - .
+
+  # 2. Push image to Artifact Registry
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE
+    waitFor: [build]
+
+  # 3. Deploy to Cloud Run — runtime secrets injected via --set-secrets
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE
+      - --image=us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:$SHORT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=512Mi
+      - --cpu=1
+      - --min-instances=0
+      - --max-instances=3
+      - --set-env-vars=^|^NODE_ENV=production|TODOIST_PROJECT_NAME=groceries|DEFAULT_ZIP_CODE=80516|DEFAULT_STORE_CHAIN=King Soopers
+      - --set-secrets=TODOIST_API_TOKEN=sgo-todoist-api-token:latest,TODOIST_CLIENT_ID=sgo-todoist-client-id:latest,TODOIST_CLIENT_SECRET=sgo-todoist-client-secret:latest,KROGER_CLIENT_ID=sgo-kroger-client-id:latest,KROGER_CLIENT_SECRET=sgo-kroger-client-secret:latest,KROGER_DEFAULT_LOCATION_ID=sgo-kroger-location-id:latest,KROGER_REDIRECT_URI=sgo-kroger-redirect-uri:latest,SERPAPI_API_KEY=sgo-serpapi-api-key:latest,NEXT_PUBLIC_SUPABASE_URL=sgo-supabase-url:latest,NEXT_PUBLIC_SUPABASE_ANON_KEY=sgo-supabase-anon-key:latest,SUPABASE_SERVICE_ROLE_KEY=sgo-supabase-service-role:latest,GROQ_API_KEY=sgo-groq-api-key:latest
+    waitFor: [push]
+
+images:
+  - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

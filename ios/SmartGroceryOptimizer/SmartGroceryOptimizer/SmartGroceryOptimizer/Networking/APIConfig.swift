@@ -9,7 +9,7 @@ enum APIConfig {
         #if targetEnvironment(simulator)
         return URL(string: "http://localhost:3000")!
         #else
-        // Physical device on local network.
+        // Physical device — local dev OR production Cloud Run.
         // Priority: runtime UserDefaults override → Info.plist (from SGO.xcconfig) → hardcoded fallback
         let host: String
         if let override = UserDefaults.standard.string(forKey: "api_host"), !override.isEmpty {
@@ -19,7 +19,12 @@ enum APIConfig {
         } else {
             host = "192.168.0.33"
         }
-        return URL(string: "http://\(host):3000")!
+        // Local dev (IP address) → http://host:3000
+        // Production (domain name) → https://host  (Cloud Run terminates TLS on 443)
+        let isIPAddress = host.range(of: #"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"#,
+                                     options: .regularExpression) != nil
+        let urlString = isIPAddress ? "http://\(host):3000" : "https://\(host)"
+        return URL(string: urlString)!
         #endif
     }
 

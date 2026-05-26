@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRequestClient } from '@/lib/supabase/server';
 import { normalizeItem, buildAbbreviationMap, DEFAULT_ABBREVIATIONS } from '@/lib/matching/normalize';
-import { parseItemText } from '@/lib/ai/gemini';
+import { parseItemText } from '@/lib/ai/groq';
 import { closeTask } from '@/lib/todoist/client';
 
 /**

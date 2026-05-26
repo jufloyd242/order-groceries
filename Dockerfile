@@ -10,9 +10,15 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
+
+# NEXT_PUBLIC_ vars must be present at build time so Next.js can bake them into
+# the client bundle. They are passed as build-args from cloudbuild.yaml (sourced
+# from Secret Manager) so no secrets live in the image or source repo.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
