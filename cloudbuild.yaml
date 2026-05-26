@@ -24,20 +24,20 @@ availableSecrets:
 
 steps:
   # 1. Build Docker image, injecting NEXT_PUBLIC_ vars as build-args
+  #    Use bash entrypoint so secretEnv values expand via shell ($VAR).
   - id: build
     name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     secretEnv: [NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY]
     args:
-      - build
-      - --build-arg
-      - NEXT_PUBLIC_SUPABASE_URL=$$NEXT_PUBLIC_SUPABASE_URL
-      - --build-arg
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=$$NEXT_PUBLIC_SUPABASE_ANON_KEY
-      - -t
-      - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:$SHORT_SHA
-      - -t
-      - us-central1-docker.pkg.dev/$_PROJECT/$_REPO/$_SERVICE:latest
-      - .
+      - '-c'
+      - |
+        docker build \
+          --build-arg "NEXT_PUBLIC_SUPABASE_URL=$$NEXT_PUBLIC_SUPABASE_URL" \
+          --build-arg "NEXT_PUBLIC_SUPABASE_ANON_KEY=$$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+          -t us-central1-docker.pkg.dev/${_PROJECT}/${_REPO}/${_SERVICE}:${SHORT_SHA} \
+          -t us-central1-docker.pkg.dev/${_PROJECT}/${_REPO}/${_SERVICE}:latest \
+          .
 
   # 2. Push image to Artifact Registry
   - id: push
