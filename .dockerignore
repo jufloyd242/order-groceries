@@ -11,6 +11,5 @@ yarn-error.log*
 *.md
 Dockerfile
 .dockerignore
-package-lock.json
 README.md
 .DS_Store
