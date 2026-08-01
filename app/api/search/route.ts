@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchProducts as searchKroger } from '@/lib/kroger/products';
-import { searchAmazonProducts as searchAmazon } from '@/lib/amazon/products';
+// import { searchAmazonProducts as searchAmazon } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
 import { ProductMatch } from '@/types';
 import { createRequestClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/search
- * Search for products across Kroger and Amazon in parallel.
+ * Search for King Soopers products.
  * Query params:
  *   - q: search query (required)
  *   - locationId: Kroger location ID (optional, uses default if not provided)
- *   - zip: zip code for Amazon search (optional, defaults to 80516)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,7 +19,6 @@ export async function GET(request: NextRequest) {
 
     const query = request.nextUrl.searchParams.get('q');
     let locationId = request.nextUrl.searchParams.get('locationId');
-    const zip = request.nextUrl.searchParams.get('zip') || '80516';
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json(
@@ -36,34 +34,18 @@ export async function GET(request: NextRequest) {
 
     const trimmedQuery = query.trim();
 
-    // Search both stores in parallel — fetch all available results for client-side pagination
-    const [krogerProducts, amazonProducts] = await Promise.all([
-      searchKroger(trimmedQuery, locationId, 50).catch((err) => {
-        console.error(`Kroger search failed for "${trimmedQuery}":`, err);
-        return [];
-      }),
-      searchAmazon(trimmedQuery, zip, 50).catch((err) => {
-        console.error(`Amazon search failed for "${trimmedQuery}":`, err);
-        return [];
-      }),
-    ]);
+    // Search Kroger only
+    const krogerProducts = await searchKroger(trimmedQuery, locationId, 50).catch((err) => {
+      console.error(`Kroger search failed for "${trimmedQuery}":`, err);
+      return [] as ProductMatch[];
+    });
 
-    // Score results with fuzzy matching
+    // Score and finalize
     const scoredKroger = scoreMatches(trimmedQuery, krogerProducts);
-    const scoredAmazon = scoreMatches(trimmedQuery, amazonProducts);
-
-    // Fall back to unscored results if fuzzy matching is too strict
     const krogerFinal = scoredKroger.length > 0 ? scoredKroger : krogerProducts;
-    const amazonFinal = scoredAmazon.length > 0 ? scoredAmazon : amazonProducts;
 
-    // Merge — products already have store field from their mappers
-    const allResults: ProductMatch[] = [
-      ...krogerFinal,
-      ...amazonFinal,
-    ];
-
-    // Sort by match score (best first), then by price
-    allResults.sort((a, b) => {
+    // Sort by match score, then price
+    krogerFinal.sort((a, b) => {
       const scoreDiff = (b.match_score ?? 0) - (a.match_score ?? 0);
       if (scoreDiff !== 0) return scoreDiff;
       return (a.price ?? 0) - (b.price ?? 0);
@@ -72,10 +54,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       query: trimmedQuery,
-      count: allResults.length,
+      count: krogerFinal.length,
       kroger_count: krogerFinal.length,
-      amazon_count: amazonFinal.length,
-      results: allResults,
+      amazon_count: 0,
+      results: krogerFinal,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

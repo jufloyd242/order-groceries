@@ -30,7 +30,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setItems(JSON.parse(stored));
+      if (stored) {
+        const parsed: CartItem[] = JSON.parse(stored);
+        // Migration: drop any Amazon items persisted before Amazon was disabled
+        const krogerOnly = parsed.filter((i) => i.store !== 'amazon');
+        setItems(krogerOnly);
+        if (krogerOnly.length !== parsed.length) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(krogerOnly));
+        }
+      }
     } catch {}
   }, []);
 

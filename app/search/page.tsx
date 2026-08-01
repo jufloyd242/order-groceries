@@ -151,7 +151,7 @@ export default function SearchPage() {
     try {
       const res = await fetch(`/api/kroger/products?q=${encodeURIComponent(q)}&locationId=${useLoc}&limit=20`);
       const data = await res.json();
-      if (data.success) setKrogerResults(data.products);
+      if (data.success) setKrogerResults((data.products as ProductMatch[]).filter((p) => p.store !== 'amazon'));
     } catch (err) {
       console.error('KS search error:', err);
     } finally {

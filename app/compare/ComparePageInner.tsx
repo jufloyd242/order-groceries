@@ -20,6 +20,9 @@ export default function ComparePageInner() {
   const filteredIds = idsParam ? new Set(idsParam.split(',').filter(Boolean)) : null;
 
   useEffect(() => {
+    // Migration: purge stale Amazon-era cache key from older sessions
+    try { sessionStorage.removeItem('sgo_cc_amazon'); } catch (_) {}
+
     // Only restore cache when showing the full list (no id filter)
     if (!filteredIds) {
       try {
@@ -45,10 +48,15 @@ export default function ComparePageInner() {
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        // Filter out purchased items — the API already scopes to selectedIds
-        const filtered: ComparisonResult[] = data.results.filter(
-          (r: ComparisonResult) => r.item.status !== 'purchased'
-        );
+        // Filter out purchased items and sanitize: Amazon fields must be empty
+        const filtered: ComparisonResult[] = data.results
+          .filter((r: ComparisonResult) => r.item.status !== 'purchased')
+          .map((r: ComparisonResult) => ({
+            ...r,
+            amazon: [],
+            selected_amazon: null,
+            winner: r.winner === 'amazon' ? 'tie' : r.winner,
+          }));
 
         // Recalculate summary for filtered results
         const summary = {

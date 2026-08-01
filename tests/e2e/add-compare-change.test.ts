@@ -429,4 +429,16 @@ describe('E2E: Add → Compare → Change → Verify', () => {
       expect(r.kroger.length).toBeGreaterThanOrEqual(0)
     })
   })
+
+  test('Test 7.5: GET /api/search never returns Amazon products', async () => {
+    const res = await fetch(`${baseURL}/api/search?q=milk`, { headers })
+    const data = await res.json()
+
+    expect(data.success).toBe(true)
+    expect(data.amazon_count).toBe(0)
+    data.results.forEach((product: any) => {
+      expect(product.store).not.toBe('amazon')
+      expect(product.store).toBe('kroger')
+    })
+  })
 })
