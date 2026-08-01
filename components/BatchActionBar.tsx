@@ -1,26 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-
 interface BatchActionBarProps {
   selectedCount: number;
   unmappedCount?: number;
   onSearch: (stores: ('kroger' | 'amazon')[]) => void;
-  onCompare: (withAmazon: boolean) => void;
+  onCompare: () => void;
   onClear: () => void;
   onDeleteSelected?: () => void;
 }
 
 export function BatchActionBar({ selectedCount, unmappedCount = 0, onSearch, onCompare, onClear, onDeleteSelected }: BatchActionBarProps) {
-  const [kroger, setKroger] = useState(true);
-  const [amazon, setAmazon] = useState(false);
-
   if (selectedCount === 0) return null;
-
-  const activeStores = ([kroger ? 'kroger' : null, amazon ? 'amazon' : null] as const).filter(
-    (s): s is 'kroger' | 'amazon' => s !== null
-  );
-  const multiStore = kroger && amazon;
 
   return (
     <div
@@ -41,30 +31,14 @@ export function BatchActionBar({ selectedCount, unmappedCount = 0, onSearch, onC
         </span>
       </div>
 
-      {/* Store toggles — chip pattern */}
+      {/* Store label */}
       <div className="flex gap-2">
-        <button
-          onClick={() => setKroger((v) => !v)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 cursor-pointer ${
-            kroger
-              ? 'bg-primary/10 text-primary border-primary/30'
-              : 'bg-transparent text-outline border-[#bfc9c1] hover:border-primary/30'
-          }`}
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-primary/10 text-primary border-primary/30"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>store</span>
           King Soopers
-        </button>
-        <button
-          onClick={() => setAmazon((v) => !v)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 cursor-pointer ${
-            amazon
-              ? 'bg-amazon/10 text-amazon border-amazon/30'
-              : 'bg-transparent text-outline border-[#bfc9c1] hover:border-amazon/30'
-          }`}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>local_shipping</span>
-          Amazon
-        </button>
+        </div>
       </div>
 
       {/* Actions */}
@@ -76,17 +50,15 @@ export function BatchActionBar({ selectedCount, unmappedCount = 0, onSearch, onC
           </span>
         )}
         <button
-          disabled={activeStores.length === 0 || multiStore}
-          onClick={() => onSearch(activeStores)}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-xl shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:bg-[#0d4430] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 cursor-pointer border-none"
+          onClick={() => onSearch(['kroger'])}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-on-primary rounded-xl shadow-[0_2px_0_0_rgba(0,0,0,0.1)] hover:bg-[#0d4430] active:scale-95 transition-all duration-150 cursor-pointer border-none"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>search</span>
           Search {selectedCount}
         </button>
         <button
-          disabled={!multiStore}
-          onClick={() => onCompare(amazon)}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white text-primary border-2 border-primary/15 rounded-xl hover:bg-primary/5 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 cursor-pointer"
+          onClick={() => onCompare()}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-white text-primary border-2 border-primary/15 rounded-xl hover:bg-primary/5 active:scale-95 transition-all duration-150 cursor-pointer"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>bar_chart</span>
           Compare {selectedCount}

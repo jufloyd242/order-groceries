@@ -8,7 +8,6 @@ import { ProductPicker } from '@/components/ProductPicker';
 export default function PickItemPage() {
   const [item, setItem] = useState<ListItem | null>(null);
   const [krogerProducts, setKrogerProducts] = useState<ProductMatch[]>([]);
-  const [amazonProducts, setAmazonProducts] = useState<ProductMatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allDone, setAllDone] = useState(false);
@@ -19,16 +18,11 @@ export default function PickItemPage() {
   const searchParams = useSearchParams();
   const itemId = params.itemId as string;
   const storeFilter = searchParams.get('store');
-  // ids and amazon are forwarded from /compare so we can reconstruct the
-  // exact return URL after picking, preserving the active item subset.
   const returnIds = searchParams.get('ids') || '';
-  const returnAmazon = searchParams.get('amazon') ?? 'true';
 
-  // Build the /compare return URL with all original context
   function buildCompareUrl(): string {
     const p = new URLSearchParams();
     if (returnIds) p.set('ids', returnIds);
-    p.set('amazon', returnAmazon);
     const qs = p.toString();
     return qs ? `/compare?${qs}` : '/compare';
   }
@@ -41,9 +35,8 @@ export default function PickItemPage() {
     setLoading(true);
     setError(null);
     setKrogerProducts([]);
-    setAmazonProducts([]);
     try {
-      // 2. Fetch specific store location (Kroger) and Zip (Amazon)
+      // Fetch settings and list in parallel
       const [settingsRes, listRes] = await Promise.all([
         fetch('/api/settings'),
         fetch('/api/list'),
@@ -60,33 +53,17 @@ export default function PickItemPage() {
       setItem(targetItem);
 
       const locationId = settingsData.settings?.kroger_location_id;
-      const zipCode = settingsData.settings?.default_zip_code || '80516';
 
-      // Only need a valid Kroger location when searching King Soopers products
-      if (!locationId && storeFilter !== 'amazon') {
+      if (!locationId) {
         setError('King Soopers Location ID not set in Settings.');
         setLoading(false);
         return;
       }
 
-      // 3. Parallel Search — fetch both stores regardless of store filter
-      // The pick screen always shows both so the user can cross-pick freely.
-      // Only skip a store if its required config is missing entirely.
       const query = targetItem.raw_text;
-      const [kRes, aRes] = await Promise.all([
-        locationId
-          ? fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=15`)
-          : null,
-        fetch(`/api/amazon/products?q=${encodeURIComponent(query)}&zip=${zipCode}&limit=15`),
-      ]);
-
-      const [kData, aData] = await Promise.all([
-        kRes ? kRes.json() : { success: false, products: [] },
-        aRes ? aRes.json() : { success: false, products: [] },
-      ]);
-
+      const kRes = await fetch(`/api/kroger/products?q=${encodeURIComponent(query)}&locationId=${locationId}&limit=15`);
+      const kData = await kRes.json();
       if (kData.success) setKrogerProducts(kData.products);
-      if (aData.success) setAmazonProducts(aData.products);
 
     } catch (err) {
       setError('Failed to load item search results.');
@@ -204,10 +181,9 @@ export default function PickItemPage() {
         itemId={itemId}
         itemName={item.raw_text}
         kroger={krogerProducts}
-        amazon={amazonProducts}
         onConfirm={handleConfirm}
         onCancel={() => router.push(buildCompareUrl())}
-        store={(storeFilter as 'kroger' | 'amazon') ?? undefined}
+        store={(storeFilter as 'kroger') ?? undefined}
       />
     </div>
   );

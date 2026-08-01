@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchProducts } from '@/lib/kroger/products';
-import { searchAmazonProducts } from '@/lib/amazon/products';
+// import { searchAmazonProducts } from '@/lib/amazon/products';
 import { ProductMatch } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 
@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
     }
 
     const doKroger = stores.includes('kroger');
-    const doAmazon = stores.includes('amazon');
     const CONCURRENCY = 3;
 
     // Process in batches of CONCURRENCY to avoid rate limits
@@ -68,7 +67,7 @@ export async function POST(request: NextRequest) {
         chunk.map(async ({ itemId, query }): Promise<BatchResultItem> => {
           const [kroger, amazon] = await Promise.allSettled([
             doKroger ? searchProducts(query, locationId, 20) : Promise.resolve([] as ProductMatch[]),
-            doAmazon ? searchAmazonProducts(query, zipCode, 20) : Promise.resolve([] as ProductMatch[]),
+            Promise.resolve([] as ProductMatch[]), // Amazon disabled
           ]);
 
           return {

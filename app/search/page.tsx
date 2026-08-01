@@ -18,37 +18,31 @@ export default function SearchPage() {
   const batchStores = batchStoresParam.split(',').filter(Boolean) as ('kroger' | 'amazon')[];
 
   const [query, setQuery] = useState(initialQuery);
-  const [activeStore, setActiveStore] = useState<'kroger' | 'amazon'>('kroger');
   const [krogerResults, setKrogerResults] = useState<ProductMatch[]>([]);
-  const [amazonResults, setAmazonResults] = useState<ProductMatch[]>([]);
   const [loadingKroger, setLoadingKroger] = useState(false);
-  const [loadingAmazon, setLoadingAmazon] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [locationId, setLocationId] = useState('');
-  const [zipCode, setZipCode] = useState('80516');
   const { addItem } = useCart();
   const [itemRawText, setItemRawText] = useState('');
   const [itemQuantity, setItemQuantity] = useState(1);
-  const [itemPreference, setItemPreference] = useState<{ preferred_upc?: string | null; preferred_asin?: string | null; display_name?: string } | null>(null);
+  const [itemPreference, setItemPreference] = useState<{ preferred_upc?: string | null; display_name?: string } | null>(null);
   const [historicalAverages, setHistoricalAverages] = useState<Record<string, number>>({});
   // Selected product keys for cart (checkbox state)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // For single-item mode: which product key is radioed as the remembered preference
   const [rememberedKey, setRememberedKey] = useState<string | null>(null);
 
-  // Auto-fill remembered radio when results load and this item has a saved preference
+  // Auto-fill remembered radio when results load
   useEffect(() => {
     if (!itemPreference || rememberedKey) return;
-    const allResults = [...krogerResults, ...amazonResults];
-    if (allResults.length === 0) return;
-    const match = allResults.find((p) => {
+    if (krogerResults.length === 0) return;
+    const match = krogerResults.find((p) => {
       if (itemPreference.preferred_upc && p.upc && p.upc === itemPreference.preferred_upc) return true;
-      if (itemPreference.preferred_asin && p.asin && p.asin === itemPreference.preferred_asin) return true;
       if (itemPreference.display_name && p.name.toLowerCase() === itemPreference.display_name.toLowerCase()) return true;
       return false;
     });
     if (match) setRememberedKey(`${match.store}-${match.id}`);
-  }, [krogerResults, amazonResults, itemPreference]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [krogerResults, itemPreference]); // eslint-disable-line react-hooks/exhaustive-deps
   // For batch mode: per-listItemId remembered product key
   const [batchRememberedKeys, setBatchRememberedKeys] = useState<Map<string, string | null>>(new Map());
   // For batch mode: maps product key → listItemId (to know which section owns it)
@@ -94,7 +88,6 @@ export default function SearchPage() {
 
         const loc = settingsRes.success ? (settingsRes.settings?.kroger_location_id || '') : '';
         const zip = settingsRes.success ? (settingsRes.settings?.default_zip_code || '80516') : '80516';
-
         const batchRes = await fetch('/api/search/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -131,9 +124,7 @@ export default function SearchPage() {
       .then((d) => {
         if (d.success) {
           const loc = d.settings?.kroger_location_id || '';
-          const zip = d.settings?.default_zip_code || '80516';
           setLocationId(loc);
-          setZipCode(zip);
           if (initialQuery && loc) {
             searchKroger(initialQuery, loc);
           }
@@ -142,16 +133,15 @@ export default function SearchPage() {
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch historical averages whenever results change (powers Stock Up badge)
+  // Fetch historical averages whenever results change
   useEffect(() => {
-    const allProducts = [...krogerResults, ...amazonResults];
-    if (allProducts.length === 0) return;
-    const names = [...new Set(allProducts.map((p) => p.name))].join(',');
+    if (krogerResults.length === 0) return;
+    const names = [...new Set(krogerResults.map((p) => p.name))].join(',');
     fetch(`/api/price-history/averages?names=${encodeURIComponent(names)}`)
       .then((r) => r.json())
       .then((d) => { if (d.success && d.averages) setHistoricalAverages(d.averages); })
       .catch(() => {});
-  }, [krogerResults, amazonResults]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [krogerResults]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function searchKroger(q: string, loc?: string) {
     const useLoc = loc ?? locationId;
@@ -169,41 +159,15 @@ export default function SearchPage() {
     }
   }
 
-  async function searchAmazon(q: string) {
-    if (!q.trim()) return;
-    setLoadingAmazon(true);
-    setAmazonResults([]);
-    try {
-      const res = await fetch(`/api/amazon/products?q=${encodeURIComponent(q)}&zip=${zipCode}&limit=20`);
-      const data = await res.json();
-      if (data.success) setAmazonResults(data.products);
-    } catch (err) {
-      console.error('Amazon search error:', err);
-    } finally {
-      setLoadingAmazon(false);
-    }
-  }
-
   async function handleSearch() {
     if (!query.trim()) return;
     setKrogerResults([]);
-    setAmazonResults([]);
     setAddedIds(new Set());
-    if (activeStore === 'kroger') {
-      await searchKroger(query);
-    } else {
-      await searchAmazon(query);
-    }
+    await searchKroger(query);
   }
 
-  function handleTabChange(store: 'kroger' | 'amazon') {
-    setActiveStore(store);
-    if (store === 'amazon' && amazonResults.length === 0 && !loadingAmazon && query.trim()) {
-      searchAmazon(query);
-    }
-    if (store === 'kroger' && krogerResults.length === 0 && !loadingKroger && query.trim()) {
-      searchKroger(query);
-    }
+  function handleTabChange(_store?: 'kroger') {
+    // Only Kroger supported — tab kept for layout compatibility
   }
 
   // ─── Single-item selection handlers ──────────────────────────────────────
@@ -217,8 +181,7 @@ export default function SearchPage() {
   }
 
   async function handleAddSelectedToCart() {
-    const allResults = [...krogerResults, ...amazonResults];
-    const toAdd = allResults.filter((p) => selectedIds.has(`${p.store}-${p.id}`));
+    const toAdd = krogerResults.filter((p) => selectedIds.has(`${p.store}-${p.id}`));
     for (const product of toAdd) {
       addItem(product, itemQuantity, itemId || undefined);
     }
@@ -229,9 +192,9 @@ export default function SearchPage() {
     });
     // Save preference if a radio is selected
     if (rememberedKey && itemRawText) {
-      const preferred = allResults.find((p) => `${p.store}-${p.id}` === rememberedKey);
+      const preferred = krogerResults.find((p) => `${p.store}-${p.id}` === rememberedKey);
       if (preferred) {
-        const { name, brand, size, store, upc, asin, price } = preferred;
+        const { name, brand, size, store, upc, price } = preferred;
         const parts: string[] = [];
         if (brand && !name.toLowerCase().startsWith(brand.toLowerCase())) parts.push(brand);
         parts.push(name);
@@ -243,12 +206,12 @@ export default function SearchPage() {
             generic_name: itemRawText.toLowerCase().trim(),
             display_name: name,
             preferred_upc: upc ?? null,
-            preferred_asin: asin ?? null,
+            preferred_asin: null,
             preferred_store: null,
             preferred_brand: brand ?? null,
             search_override: parts.join(' ').trim(),
             last_kroger_price: store === 'kroger' ? (price ?? null) : null,
-            last_amazon_price: store === 'amazon' ? (price ?? null) : null,
+            last_amazon_price: null,
           }),
         }).catch((err) => console.error('Failed to save preference:', err));
       }
@@ -284,12 +247,8 @@ export default function SearchPage() {
   }
 
   async function handleAddSelectedBatch() {
-    // Group selected keys by their listItemId
     const byItem = new Map<string, ProductMatch[]>();
-    const allBatchProducts = Array.from(batchResults.values()).flatMap((r) => [
-      ...r.kroger,
-      ...r.amazon,
-    ]);
+    const allBatchProducts = Array.from(batchResults.values()).flatMap((r) => r.kroger);
     for (const key of selectedIds) {
       const listItemId = batchSelectedItemMap.get(key);
       if (!listItemId) continue;
@@ -314,7 +273,7 @@ export default function SearchPage() {
         if (preferred) {
           const rawText = batchItems.find((i) => i.id === listItemId)?.raw_text || '';
           if (rawText) {
-            const { name, brand, size, store, upc, asin, price } = preferred;
+            const { name, brand, size, store, upc, price } = preferred;
             const parts: string[] = [];
             if (brand && !name.toLowerCase().startsWith(brand.toLowerCase())) parts.push(brand);
             parts.push(name);
@@ -326,12 +285,12 @@ export default function SearchPage() {
                 generic_name: rawText.toLowerCase().trim(),
                 display_name: name,
                 preferred_upc: upc ?? null,
-                preferred_asin: asin ?? null,
+                preferred_asin: null,
                 preferred_store: null,
                 preferred_brand: brand ?? null,
                 search_override: parts.join(' ').trim(),
                 last_kroger_price: store === 'kroger' ? (price ?? null) : null,
-                last_amazon_price: store === 'amazon' ? (price ?? null) : null,
+                last_amazon_price: null,
               }),
             }).catch((err) => console.error('Failed to save preference:', err));
           }
@@ -362,13 +321,6 @@ export default function SearchPage() {
   // ─── Batch mode: early-return JSX ────────────────────────────────────────
   if (mode === 'batch') {
     const allDone = batchItems.length > 0 && batchItems.every((i) => cartedItemIds.has(i.id));
-    const batchStoreView: 'kroger' | 'amazon' | 'both' =
-      batchStores.includes('kroger') && batchStores.includes('amazon')
-        ? 'both'
-        : batchStores.includes('amazon')
-          ? 'amazon'
-          : 'kroger';
-
     return (
       <div className="max-w-[1280px] mx-auto px-4 md:px-6 pb-10">
         <header className="pt-8 mb-8">
@@ -410,7 +362,6 @@ export default function SearchPage() {
           rememberedKeys={batchRememberedKeys}
           onSelectRemember={handleBatchSelectRemember}
           cartedItemIds={cartedItemIds}
-          activeStore={batchStoreView}
         />
 
         {/* Sticky Add to Cart bar (batch mode) */}
@@ -432,8 +383,8 @@ export default function SearchPage() {
     );
   }
 
-  const activeResults = activeStore === 'kroger' ? krogerResults : amazonResults;
-  const isLoading = activeStore === 'kroger' ? loadingKroger : loadingAmazon;
+  const activeResults = krogerResults;
+  const isLoading = loadingKroger;
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 md:px-6 pb-32">
@@ -476,33 +427,15 @@ export default function SearchPage() {
         </button>
       </div>
 
-      {/* Store Tabs */}
+      {/* Store Tab — King Soopers only */}
       <div className="flex gap-0 mb-8 border-b border-[#edeeef]">
         <button
           onClick={() => handleTabChange('kroger')}
-          className={`px-5 py-2.5 border-none cursor-pointer font-semibold text-sm transition-all bg-transparent ${
-            activeStore === 'kroger'
-              ? 'text-kroger border-b-2 border-kroger -mb-px'
-              : 'text-outline'
-          }`}
+          className="px-5 py-2.5 border-none cursor-pointer font-semibold text-sm bg-transparent text-kroger border-b-2 border-kroger -mb-px"
         >
           King Soopers
           {krogerResults.length > 0 && (
             <span className="ml-1.5 text-[11px] opacity-60">({krogerResults.length})</span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('amazon')}
-          className={`px-5 py-2.5 border-none cursor-pointer font-semibold text-sm transition-all bg-transparent ${
-            activeStore === 'amazon'
-              ? 'text-amazon border-b-2 border-amazon -mb-px'
-              : 'text-outline'
-          }`}
-        >
-          Amazon
-          <span className="font-normal text-[11px] opacity-60"> (on demand)</span>
-          {amazonResults.length > 0 && (
-            <span className="ml-1.5 text-[11px] opacity-60">({amazonResults.length})</span>
           )}
         </button>
       </div>

@@ -6,33 +6,24 @@ import { ComparisonResult, ComparisonSummary } from '@/types';
 import { ComparisonRow } from '@/components/ComparisonRow';
 
 const CACHE_KEY_KS = 'sgo_cc_ks';
-const CACHE_KEY_AMAZON = 'sgo_cc_amazon';
 
 export default function ComparePageInner() {
   const [results, setResults] = useState<ComparisonResult[]>([]);
   const [summary, setSummary] = useState<ComparisonSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [includeAmazon, setIncludeAmazon] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // Items filter from home page selection (e.g. /compare?ids=1,2,3)
   const idsParam = searchParams.get('ids') || '';
   const filteredIds = idsParam ? new Set(idsParam.split(',').filter(Boolean)) : null;
-  // Amazon flag: URL param overrides default (default is true)
-  const amazonParamRaw = searchParams.get('amazon');
-  const amazonParam = amazonParamRaw !== null ? amazonParamRaw === 'true' : true;
 
   useEffect(() => {
-    const withAmazon = amazonParam;
-    setIncludeAmazon(withAmazon);
     // Only restore cache when showing the full list (no id filter)
-    // Use the cache that matches the current Amazon state to avoid stale data.
     if (!filteredIds) {
       try {
-        const cacheKey = withAmazon ? CACHE_KEY_AMAZON : CACHE_KEY_KS;
-        const cached = sessionStorage.getItem(cacheKey);
+        const cached = sessionStorage.getItem(CACHE_KEY_KS);
         if (cached) {
           const { results: cachedResults, summary: cachedSummary } = JSON.parse(cached);
           setResults(cachedResults);
@@ -41,15 +32,14 @@ export default function ComparePageInner() {
         }
       } catch (_) {}
     }
-    fetchComparison(withAmazon);
+    fetchComparison();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function fetchComparison(withAmazon = false) {
+  async function fetchComparison() {
     setLoading(true);
     setError(null);
     try {
       const apiParams = new URLSearchParams();
-      if (withAmazon) apiParams.set('amazon', 'true');
       if (idsParam) apiParams.set('ids', idsParam);
       const url = `/api/compare?${apiParams}`;
       const res = await fetch(url);
@@ -64,27 +54,22 @@ export default function ComparePageInner() {
         const summary = {
           totalItems: filtered.length,
           krogerWins: filtered.filter((r: ComparisonResult) => r.winner === 'kroger').length,
-          amazonWins: filtered.filter((r: ComparisonResult) => r.winner === 'amazon').length,
+          amazonWins: 0,
           ties: filtered.filter((r: ComparisonResult) => r.winner === 'tie').length,
           krogerCartTotal: filtered.reduce((sum: number, r: ComparisonResult) => sum + (r.selected_kroger?.price ?? 0) * (r.item.quantity ?? 1), 0),
-          amazonCartTotal: filtered.reduce((sum: number, r: ComparisonResult) => sum + (r.selected_amazon?.price ?? 0) * (r.item.quantity ?? 1), 0),
-          totalSavings: filtered.reduce((sum: number, r: ComparisonResult) => sum + (r.savings ?? 0), 0),
+          amazonCartTotal: 0,
+          totalSavings: 0,
           unmappedCount: filtered.filter((r: ComparisonResult) => r.item.status === 'pending').length,
         };
-
         setResults(filtered);
         setSummary(summary);
-        // Only cache when showing the full list (no id filter active) AND Kroger
-        // returned at least some results. Caching a run where Kroger came back
-        // empty (transient API error, bad location ID, etc.) would permanently
-        // show $0 / no KS prices until the user manually refreshes.
+        // Only cache when showing the full list and Kroger returned results.
         const krogerHasData = filtered.some(
           (r: ComparisonResult) => r.selected_kroger !== null || r.kroger.length > 0
         );
         if (!filteredIds && krogerHasData) {
           try {
-            const cacheKey = withAmazon ? CACHE_KEY_AMAZON : CACHE_KEY_KS;
-            sessionStorage.setItem(cacheKey, JSON.stringify({ results: filtered, summary }));
+            sessionStorage.setItem(CACHE_KEY_KS, JSON.stringify({ results: filtered, summary }));
           } catch (_) {}
         }
       } else {
@@ -98,21 +83,14 @@ export default function ComparePageInner() {
   }
 
   function handlePick(itemId: string, store: 'kroger' | 'amazon') {
-    // Clear both caches so comparison re-fetches with updated preference
-    try {
-      sessionStorage.removeItem(CACHE_KEY_KS);
-      sessionStorage.removeItem(CACHE_KEY_AMAZON);
-    } catch (_) {}
-    // Carry the active ids + amazon context forward so the pick page can
-    // reconstruct the exact same /compare URL on return.
+    try { sessionStorage.removeItem(CACHE_KEY_KS); } catch (_) {}
     const returnParams = new URLSearchParams({ store });
     if (idsParam) returnParams.set('ids', idsParam);
-    returnParams.set('amazon', String(includeAmazon));
     router.push(`/pick/${itemId}?${returnParams}`);
   }
 
   if (loading) {
-    return <CompareLoadingScreen includeAmazon={includeAmazon} />;
+    return <CompareLoadingScreen />;
   }
 
   if (error) {
@@ -121,7 +99,7 @@ export default function ComparePageInner() {
         <div style={{ fontSize: '3rem', color: 'var(--accent-red)', marginBottom: 'var(--space-md)' }}>⚠️</div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Error Loading Comparison</h1>
         <p style={{ color: 'var(--accent-red)', marginTop: 'var(--space-sm)' }}>{error}</p>
-        <button className="btn btn-primary" onClick={() => fetchComparison(includeAmazon)} style={{ marginTop: 'var(--space-md)' }}>Try Again</button>
+        <button className="btn btn-primary" onClick={() => fetchComparison()} style={{ marginTop: 'var(--space-md)' }}>Try Again</button>
       </div>
     );
   }
@@ -132,35 +110,13 @@ export default function ComparePageInner() {
         <div>
           <h1 className="page-title">📊 Price Comparison</h1>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Comparing King Soopers{includeAmazon ? ' & Amazon' : ''} for{' '}
+            King Soopers prices for{' '}
             {filteredIds ? `${results.length} selected item${results.length !== 1 ? 's' : ''}` : `${results.length} item${results.length !== 1 ? 's' : ''}`}.
           </p>
-          <div style={{ marginTop: '0.75rem' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-              <input
-                type="checkbox"
-                checked={includeAmazon}
-                onChange={(e) => {
-                  const newValue = e.target.checked;
-                  // Evict cache for the target state so we always fetch fresh data after toggle
-                  try { sessionStorage.removeItem(newValue ? CACHE_KEY_AMAZON : CACHE_KEY_KS); } catch (_) {}
-                  setIncludeAmazon(newValue);
-                  fetchComparison(newValue);
-                }}
-                style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
-              />
-              🚀 Compare with Amazon <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(slower)</span>
-            </label>
-          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-green)' }}>
-            {includeAmazon
-              ? `Total Savings: $${summary?.totalSavings.toFixed(2)}`
-              : `King Soopers Total: $${summary?.krogerCartTotal.toFixed(2)}`}
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {includeAmazon ? 'Based on current best matches' : 'Toggle Amazon above to compare prices'}
+            King Soopers Total: ${summary?.krogerCartTotal.toFixed(2)}
           </div>
         </div>
       </header>
@@ -172,7 +128,6 @@ export default function ComparePageInner() {
             key={result.item.id}
             result={result}
             onPick={handlePick}
-            isAmazonSearched={includeAmazon}
           />
         ))}
       </div>
@@ -197,16 +152,8 @@ const KS_MESSAGES = [
   'Taste-testing every sample to ensure accuracy…',
 ];
 
-const AMAZON_MESSAGES = [
-  'Galloping through the aisles to beat the Amazon delivery driver…',
-  'Arguing with the self-checkout about an unexpected item in the bagging area…',
-  'Scanning every barcode in existence. Please hold…',
-  'Dispatching a drone to check Amazon\'s warehouse inventory…',
-  'Consulting three different price-comparison spreadsheets simultaneously…',
-];
-
-export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean }) {
-  const messages = includeAmazon ? AMAZON_MESSAGES : KS_MESSAGES;
+export function CompareLoadingScreen() {
+  const messages = KS_MESSAGES;
   const [msgIndex, setMsgIndex] = useState(0);
 
   useEffect(() => {
@@ -272,25 +219,11 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
               }}
             />
           ))}
-
-          {/* Scanner beam (only when Amazon) */}
-          {includeAmazon && (
-            <div style={{
-              position: 'absolute',
-              left: '15%',
-              right: '15%',
-              height: '2px',
-              background: 'linear-gradient(90deg, transparent, #84cc16, #ff9900, #84cc16, transparent)',
-              borderRadius: '2px',
-              animation: 'scanLine 1.8s ease-in-out infinite',
-              boxShadow: '0 0 8px rgba(132,204,22,0.6)',
-            }} />
-          )}
         </div>
 
         {/* Title */}
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-          {includeAmazon ? '🔍 Comparing Prices…' : '🟢 Fetching King Soopers Prices…'}
+          🟢 Fetching King Soopers Prices…
         </h2>
 
         {/* Rotating message */}
@@ -307,13 +240,6 @@ export function CompareLoadingScreen({ includeAmazon }: { includeAmazon: boolean
         >
           {messages[msgIndex]}
         </p>
-
-        {/* Time warning */}
-        {includeAmazon && (
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
-            Amazon lookups take 10–20 seconds.
-          </p>
-        )}
       </div>
     </div>
   );

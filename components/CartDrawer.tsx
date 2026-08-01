@@ -15,7 +15,7 @@ interface CartDrawerProps {
 export function CartDrawer({ open, onClose }: CartDrawerProps) {
   const { items, removeItem, updateQuantity, clearCart, removeItems, getByStore, getStoreTotals } =
     useCart();
-  const [submitting, setSubmitting] = useState<'kroger' | 'amazon' | null>(null);
+  const [submitting, setSubmitting] = useState<'kroger' | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const router = useRouter();
 
@@ -64,12 +64,6 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
     } finally {
       setSubmitting(null);
     }
-  }
-
-  async function handleAmazonOpen(item: CartItem) {
-    if (!item.asin) return;
-    const url = `https://www.amazon.com/dp/${encodeURIComponent(item.asin)}`;
-    window.open(url, '_blank', 'noopener');
   }
 
   return (
@@ -130,16 +124,6 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                   onUpdateQty={updateQuantity}
                 />
               )}
-              {byStore.amazon.length > 0 && (
-                <StoreSection
-                  label="Amazon"
-                  headerClass="bg-amazon/5 border-amazon/20 text-amazon"
-                  items={byStore.amazon}
-                  total={totals.amazon}
-                  onRemove={removeItem}
-                  onUpdateQty={updateQuantity}
-                />
-              )}
             </>
           )}
 
@@ -173,25 +157,6 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
               >
                 {submitting === 'kroger' ? 'Submitting…' : `Push to King Soopers (${byStore.kroger.length})`}
               </button>
-            )}
-            {byStore.amazon.length > 0 && (
-              <div className="mb-2">
-                <p className="text-xs text-on-surface-variant mb-1.5 px-1">
-                  Amazon items — open each to add to your cart:
-                </p>
-                {byStore.amazon.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleAmazonOpen(item)}
-                    className="w-full py-2 px-3 mb-1 text-sm font-medium rounded-lg text-[#111] border-none cursor-pointer transition-all duration-150 hover:opacity-80 active:scale-[0.98] text-left flex items-center gap-2"
-                    style={{ backgroundColor: 'rgba(255, 153, 0, 0.15)' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#FF9900' }}>open_in_new</span>
-                    <span className="truncate flex-1">{item.name}</span>
-                    {item.quantity > 1 && <span className="text-xs text-outline">×{item.quantity}</span>}
-                  </button>
-                ))}
-              </div>
             )}
             <button
               onClick={clearCart}

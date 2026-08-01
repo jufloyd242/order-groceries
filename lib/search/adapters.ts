@@ -11,11 +11,11 @@
  */
 import { registerAdapter, searchAll, registeredStores } from './registry';
 import { krogerAdapter } from '@/lib/kroger/adapter';
-import { amazonAdapter } from '@/lib/amazon/adapter';
+// import { amazonAdapter } from '@/lib/amazon/adapter';
 import { ProductMatch, NormalizedProduct } from '@/types';
 
 registerAdapter(krogerAdapter);
-registerAdapter(amazonAdapter);
+// registerAdapter(amazonAdapter);
 
 /**
  * Normalize any raw ProductMatch into a NormalizedProduct.

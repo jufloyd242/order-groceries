@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { resolveItem } from '@/lib/matching/preferences';
 import { searchProducts as searchKroger, getProductByUpc } from '@/lib/kroger/products';
-import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
+// import { searchAmazonProducts as searchAmazon, getAmazonProductByAsin } from '@/lib/amazon/products';
 import { scoreMatches } from '@/lib/matching/fuzzy';
 import { applySemanticMatching } from '@/lib/ai/groq';
 import { compareItem, summarizeResults } from '@/lib/comparison/engine';
@@ -11,7 +11,6 @@ import { ComparisonResult, ListItem, ResolvedItem } from '@/types';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const compareAmazon = searchParams.get('amazon') === 'true';
     const idsParam = searchParams.get('ids');
     const selectedIds = idsParam ? idsParam.split(',').filter(Boolean) : null;
 
@@ -66,29 +65,16 @@ export async function GET(request: NextRequest) {
 
           // For items with a saved UPC, bypass search entirely (exact product match)
           let krogerProducts: import('@/types').ProductMatch[] = [];
-          let amazonProducts: import('@/types').ProductMatch[] = [];
 
           const hasExactKroger = pref?.preferred_upc;
-          const hasExactAmazon = pref?.preferred_asin;
 
-          const [krogerResult, amazonResult] = await Promise.all([
+          const [krogerResult] = await Promise.all([
             hasExactKroger
               ? getProductByUpc(pref!.preferred_upc!, locationId).catch(() => null)
               : searchKroger(query, locationId, 5, pref?.preferred_brand ?? undefined).catch((err) => {
                   console.error(`Kroger search failed for "${query}" at location "${locationId}":`, err);
                   return [] as import('@/types').ProductMatch[];
                 }),
-            compareAmazon
-              ? (hasExactAmazon
-                  ? getAmazonProductByAsin(pref!.preferred_asin!, zipCode).catch((err) => {
-                      console.error(`Amazon ASIN lookup failed for "${pref!.preferred_asin}":`, err);
-                      return null;
-                    })
-                  : searchAmazon(query, zipCode, 5).catch((err) => {
-                      console.error(`Amazon search failed for "${query}":`, err);
-                      return [] as import('@/types').ProductMatch[];
-                    }))
-              : Promise.resolve([] as import('@/types').ProductMatch[]),
           ]);
 
           // Normalize results: exact lookups return single product or null
@@ -102,32 +88,9 @@ export async function GET(request: NextRequest) {
             krogerProducts = krogerResult as import('@/types').ProductMatch[];
           }
 
-          amazonProducts = hasExactAmazon
-            // getAmazonProductByAsin returns ProductMatch | null
-            ? (amazonResult ? [amazonResult as import('@/types').ProductMatch] : [])
-            : (amazonResult as import('@/types').ProductMatch[] ?? []);
-
-          // Debug: always log Amazon result count so we know if SerpApi is returning data at all
-          if (compareAmazon) {
-            console.log(`[Debug] Amazon found ${amazonProducts.length} items for query: "${query}"`);
-          }
-
           if (krogerProducts.length === 0) {
             console.log(`⚠️ Kroger search returned 0 results for "${query}" at location "${locationId}"`);
           }
-
-          // Log raw Amazon results before fuzzy filtering (diagnose score drop-off)
-          if (compareAmazon && amazonProducts.length > 0) {
-            const preScore = scoreMatches(query, amazonProducts);
-            console.log(`[compare] Amazon raw scores for "${query}":`,
-              preScore.slice(0, 5).map((p) => `${p.name} → ${p.match_score} (\$${p.price})`)
-            );
-          } else if (compareAmazon) {
-            console.log(`⚠️ Amazon returned 0 results for "${query}"`);
-          }
-
-          // Combined raw count log — confirms data is flowing before fuzzy filtering
-          console.log('Query:', query, 'Kroger Raw Count:', krogerProducts.length, 'Amazon Raw Count:', amazonProducts.length);
 
           // Pinned products (saved UPC/ASIN): skip fuzzy scoring entirely.
           // The user explicitly chose these, so any Fuse score is irrelevant.
@@ -141,20 +104,11 @@ export async function GET(request: NextRequest) {
             ? krogerProducts.map((p) => ({ ...p, match_score: 100 }))
             : scoreMatches(query, krogerProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
 
-          const scoredAmazon = (hasExactAmazon && amazonProducts.length > 0)
-            ? amazonProducts.map((p) => ({ ...p, match_score: 100 }))
-            : scoreMatches(query, amazonProducts).filter(p => p.match_score >= MIN_MATCH_SCORE).sort(byName);
-
-          // AI re-scoring: use Groq to evaluate ambiguous matches (score 30–70)
-          // Pinned products (score 100) and clear matches are untouched.
-          // If GROQ_API_KEY is not set, this is a no-op.
-          const [aiKroger, aiAmazon] = await Promise.all([
+          const [aiKroger] = await Promise.all([
             hasExactKroger ? scoredKroger : applySemanticMatching(query, scoredKroger),
-            hasExactAmazon ? scoredAmazon : applySemanticMatching(query, scoredAmazon),
           ]);
 
-          // Perform comparison (pass preference so it can prioritize saved products)
-          return compareItem(resolved.listItem, aiKroger, aiAmazon, resolved.preference);
+          return compareItem(resolved.listItem, aiKroger, [], resolved.preference);
         } catch (err) {
           console.error(`Error comparing item "${item.raw_text}":`, err);
           return {

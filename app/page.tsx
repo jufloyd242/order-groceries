@@ -368,15 +368,13 @@ export default function Home() {
   function handleBatchSearch(stores: ('kroger' | 'amazon')[]) {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    const storeParam = stores.join(',');
-    router.push(`/search?mode=batch&ids=${encodeURIComponent(ids.join(','))}&stores=${encodeURIComponent(storeParam)}`);
+    router.push(`/search?mode=batch&ids=${encodeURIComponent(ids.join(','))}&stores=kroger`);
   }
 
-  function handleBatchCompare(withAmazon: boolean) {
+  function handleBatchCompare() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    const url = `/compare?ids=${encodeURIComponent(ids.join(','))}${withAmazon ? '&amazon=true' : ''}`;
-    router.push(url);
+    router.push(`/compare?ids=${encodeURIComponent(ids.join(','))}`);
   }
 
   const cartedCount = items.filter((i) => i.status === 'carted').length;

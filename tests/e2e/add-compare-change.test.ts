@@ -351,4 +351,82 @@ describe('E2E: Add → Compare → Change → Verify', () => {
     const res = await fetch(`${baseURL}/api/list`)
     expect(res.status).toBe(401)
   })
+
+  // ─── Suite 7: Amazon Disabled ─────────────────────────────────────────────
+
+  test('Test 7.1: Compare results never include Amazon products', async () => {
+    await fetch(`${baseURL}/api/list`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ items: [{ raw_text: 'milk', source: 'manual' }] }),
+    })
+
+    const res = await fetch(`${baseURL}/api/compare`, { headers })
+    const data = await res.json()
+
+    expect(data.success).toBe(true)
+    data.results.forEach((result: any) => {
+      expect(result.selected_amazon).toBeNull()
+      expect(result.amazon).toHaveLength(0)
+    })
+  })
+
+  test('Test 7.2: ?amazon=true query param is ignored — no Amazon results', async () => {
+    await fetch(`${baseURL}/api/list`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ items: [{ raw_text: 'bread', source: 'manual' }] }),
+    })
+
+    const res = await fetch(`${baseURL}/api/compare?amazon=true`, { headers })
+    const data = await res.json()
+
+    expect(data.success).toBe(true)
+    data.results.forEach((result: any) => {
+      expect(result.selected_amazon).toBeNull()
+      expect(result.winner).not.toBe('amazon')
+    })
+  })
+
+  test('Test 7.3: Summary never reports Amazon wins or Amazon cart total', async () => {
+    await fetch(`${baseURL}/api/list`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        items: [
+          { raw_text: 'milk', source: 'manual' },
+          { raw_text: 'bread', source: 'manual' },
+        ],
+      }),
+    })
+
+    const res = await fetch(`${baseURL}/api/compare`, { headers })
+    const data = await res.json()
+
+    expect(data.summary.amazonWins).toBe(0)
+    expect(data.summary.amazonCartTotal).toBe(0)
+  })
+
+  test('Test 7.4: Batch search only returns Kroger results', async () => {
+    const settingsRes = await fetch(`${baseURL}/api/settings`, { headers })
+    const settingsData = await settingsRes.json()
+    const locationId = settingsData.settings?.kroger_location_id
+
+    const res = await fetch(`${baseURL}/api/search/batch`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        queries: [{ itemId: 'test-id', query: 'milk' }],
+        stores: ['kroger'],
+        locationId,
+      }),
+    })
+    const data = await res.json()
+
+    expect(data.success).toBe(true)
+    data.results.forEach((r: any) => {
+      expect(r.amazon).toHaveLength(0)
+      expect(r.kroger.length).toBeGreaterThanOrEqual(0)
+    })
+  })
 })

@@ -8,7 +8,7 @@ import ComparePageInner, { CompareLoadingScreen } from './ComparePageInner';
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={<CompareLoadingScreen includeAmazon={true} />}>
+    <Suspense fallback={<CompareLoadingScreen />}>
       <ComparePageInner />
     </Suspense>
   );

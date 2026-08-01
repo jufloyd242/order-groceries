@@ -22,7 +22,6 @@ interface BatchSearchResultsProps {
   rememberedKeys: Map<string, string | null>;
   onSelectRemember: (key: string, itemId: string) => void;
   cartedItemIds: Set<string>;
-  activeStore: 'kroger' | 'amazon' | 'both';
 }
 
 export function BatchSearchResults({
@@ -35,7 +34,6 @@ export function BatchSearchResults({
   rememberedKeys,
   onSelectRemember,
   cartedItemIds,
-  activeStore,
 }: BatchSearchResultsProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -57,15 +55,7 @@ export function BatchSearchResults({
         const isOpen = !collapsed.has(item.id);
 
         const krogerProducts = result?.kroger ?? [];
-        const amazonProducts = result?.amazon ?? [];
-        const storeProducts =
-          activeStore === 'kroger'
-            ? krogerProducts
-            : activeStore === 'amazon'
-              ? amazonProducts
-              : [...krogerProducts, ...amazonProducts];
-
-        const totalCount = krogerProducts.length + amazonProducts.length;
+        const totalCount = krogerProducts.length;
 
         return (
           <div
@@ -122,48 +112,14 @@ export function BatchSearchResults({
                   <div className="text-center py-10 text-on-surface-variant text-sm">
                     Searching for &ldquo;{item.raw_text}&rdquo;…
                   </div>
-                ) : storeProducts.length === 0 ? (
+                ) : krogerProducts.length === 0 ? (
                   <div className="text-center py-10 text-on-surface-variant text-sm">
                     No products found for &ldquo;{item.raw_text}&rdquo;
                   </div>
                 ) : (
                   <div>
-                    {/* KS sub-header when showing both stores */}
-                    {activeStore === 'both' && krogerProducts.length > 0 && (
-                      <p className="text-xs font-bold text-kroger mb-2 mt-0">
-                        <span className="material-symbols-outlined align-middle mr-1" style={{ fontSize: '13px' }}>store</span>
-                        King Soopers ({krogerProducts.length})
-                      </p>
-                    )}
-                    <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                      {(activeStore === 'kroger' || activeStore === 'both') &&
-                        krogerProducts.map((product) => {
-                          const key = `${product.store}-${product.id}`;
-                          return (
-                            <ProductCard
-                              key={key}
-                              product={product}
-                              isAdded={addedIds.has(key)}
-                              isSelected={selectedIds.has(key)}
-                              onToggleSelect={() => onToggleSelect(key, item.id)}
-                              isRemembered={rememberedKeys.get(item.id) === key}
-                              onSelectRemember={() => onSelectRemember(key, item.id)}
-                              radioGroupName={`remember-${item.id}`}
-                            />
-                          );
-                        })}
-                    </div>
-
-                    {/* Amazon sub-header when showing both stores */}
-                    {activeStore === 'both' && amazonProducts.length > 0 && (
-                      <p className="text-xs font-bold text-amazon mb-2 mt-2">
-                        <span className="material-symbols-outlined align-middle mr-1" style={{ fontSize: '13px' }}>local_shipping</span>
-                        Amazon ({amazonProducts.length})
-                      </p>
-                    )}
                     <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                      {(activeStore === 'amazon' || activeStore === 'both') &&
-                        amazonProducts.map((product) => {
+                      {krogerProducts.map((product) => {
                           const key = `${product.store}-${product.id}`;
                           return (
                             <ProductCard

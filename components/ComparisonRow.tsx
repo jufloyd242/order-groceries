@@ -1,6 +1,6 @@
 'use client';
 
-import { ComparisonResult, ProductMatch } from '@/types';
+import { ComparisonResult } from '@/types';
 import { useCart } from '@/lib/cart/CartContext';
 import Image from 'next/image';
 import { useState } from 'react';
@@ -8,20 +8,15 @@ import { useState } from 'react';
 interface ComparisonRowProps {
   result: ComparisonResult;
   onPick: (itemId: string, store: 'kroger' | 'amazon') => void;
-  /** True when the compare API was called with ?amazon=true — distinguishes "Not Found" from "Not Searched" */
-  isAmazonSearched?: boolean;
 }
 
-export function ComparisonRow({ result, onPick, isAmazonSearched = false }: ComparisonRowProps) {
-  const { item, selected_kroger, selected_amazon, winner, savings, best_fit } = result;
+export function ComparisonRow({ result, onPick }: ComparisonRowProps) {
+  const { item, selected_kroger, winner, best_fit } = result;
   const { addItem } = useCart();
   const [addedKroger, setAddedKroger] = useState(false);
-  const [addedAmazon, setAddedAmazon] = useState(false);
 
   // Treat falsy prices (0, undefined) as unavailable
   const krogerPrice = selected_kroger ? ((selected_kroger.promo_price ?? selected_kroger.price) || null) : null;
-  // Treat $0 as unavailable (SerpApi free tier limitation)
-  const amazonPrice = selected_amazon ? ((selected_amazon.promo_price ?? selected_amazon.price) || null) : null;
 
   // Format the measurement requirement for display
   const measurementLabel = item.quantity_type === 'measurement' && item.min_required_amount
@@ -30,14 +25,14 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
 
   return (
     <div className="glass-card" style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-md)' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 100px', gap: 'var(--space-md)', alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 100px', gap: 'var(--space-md)', alignItems: 'center' }}>
         
         {/* Item Info */}
         <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
           <div style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.05)', flexShrink: 0 }}>
-            {(selected_kroger?.image_url || selected_amazon?.image_url) ? (
+            {selected_kroger?.image_url ? (
               <Image 
-                src={selected_kroger?.image_url || selected_amazon?.image_url || ''} 
+                src={selected_kroger?.image_url || ''} 
                 alt={item.raw_text}
                 fill
                 style={{ objectFit: 'contain' }}
@@ -48,9 +43,9 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
           </div>
           <div style={{ minWidth: 0 }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.raw_text}</h3>
-            {(selected_kroger?.name || selected_amazon?.name) ? (
+            {selected_kroger?.name ? (
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selected_kroger?.name || selected_amazon?.name}
+                {selected_kroger?.name}
               </p>
             ) : (
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontStyle: 'italic' }}>No matches found</p>
@@ -107,69 +102,12 @@ export function ComparisonRow({ result, onPick, isAmazonSearched = false }: Comp
           )}
         </div>
 
-        {/* Amazon Price */}
-        <div style={{ textAlign: 'center', minHeight: '72px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>AMAZON</div>
-          {amazonPrice !== null && amazonPrice > 0 ? (
-            <div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: winner === 'amazon' ? 'var(--accent-green)' : 'var(--text-primary)' }}>
-                ${amazonPrice.toFixed(2)}
-              </div>
-              {selected_amazon?.is_prime && (
-                <span className="badge" style={{ backgroundColor: '#232f3e', color: '#ff9900', border: '1px solid #ff9900', fontSize: '0.6rem', padding: '1px 4px' }}>Prime</span>
-              )}
-              {selected_amazon?.link && (
-                <a href={selected_amazon.link} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', display: 'block', marginTop: '2px' }}>View ↗</a>
-              )}
-            </div>
-          ) : selected_amazon ? (
-            /* Product was found but price is unavailable (common on SerpApi free tier) */
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-              <div style={{ fontStyle: 'italic', marginBottom: '4px' }}>Price unavailable</div>
-              {selected_amazon.link && (
-                <a href={selected_amazon.link} target="_blank" rel="noopener noreferrer"
-                  style={{ color: '#ff9900', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}>
-                  Check on Amazon ↗
-                </a>
-              )}
-            </div>
-          ) : isAmazonSearched ? (
-            /* Amazon was searched but returned no match for this item */
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No Close Match Found</div>
-          ) : (
-            /* Amazon wasn't included in this comparison run */
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Not searched</div>
-          )}
-          <button 
-            onClick={() => onPick(item.id, 'amazon')}
-            style={{ border: 'none', background: 'none', color: 'var(--accent-blue)', fontSize: '0.75rem', cursor: 'pointer', padding: '4px 8px', marginTop: '4px' }}
-          >
-            Change ▼
-          </button>
-          {amazonPrice !== null && amazonPrice > 0 && (
-            addedAmazon ? (
-              <div style={{ fontSize: '0.72rem', color: 'var(--accent-green)', fontWeight: 600, marginTop: '2px' }}>✓ Added</div>
-            ) : (
-              <button
-                onClick={() => { addItem(selected_amazon!, item.quantity ?? 1, item.id); setAddedAmazon(true); }}
-                style={{ marginTop: '2px', padding: '3px 10px', borderRadius: '6px', border: 'none', background: '#ff9900', color: '#0a0a0a', fontWeight: 600, fontSize: '0.72rem', cursor: 'pointer' }}
-              >
-                + Add
-              </button>
-            )
-          )}
-        </div>
-
         {/* Result/Winner */}
         <div style={{ textAlign: 'right' }}>
-          {winner !== 'tie' && (
+          {winner === 'kroger' && krogerPrice !== null && (
             <div>
               <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-green)' }}>
-                ✅ {winner === 'kroger' ? 'KS' : 'AMZ'}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Save ${savings.toFixed(2)}
+                ✅ KS
               </div>
               {best_fit && (
                 <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#0ea5e9', marginTop: '4px', padding: '2px 6px', backgroundColor: 'rgba(14, 165, 233, 0.1)', borderRadius: '4px', display: 'inline-block' }}>

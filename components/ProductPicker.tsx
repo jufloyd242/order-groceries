@@ -8,14 +8,13 @@ interface ProductPickerProps {
   itemId: string;
   itemName: string;
   kroger: ProductMatch[];
-  amazon: ProductMatch[];
   onConfirm: (selected: ProductMatch, quantity: number, remember: boolean) => void;
   onCancel: () => void;
-  /** When set, only show results for this store and update the title accordingly. */
+  /** When set, only show results for this store. */
   store?: 'kroger' | 'amazon';
 }
 
-export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onCancel, store }: ProductPickerProps) {
+export function ProductPicker({ itemId, itemName, kroger, onConfirm, onCancel, store }: ProductPickerProps) {
   const [selected, setSelected] = useState<ProductMatch | null>(null);
   const [qty, setQty] = useState(1);
   // Default to unchecked — user must explicitly opt-in to saving this choice
@@ -37,8 +36,6 @@ export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onC
         <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>
           {store === 'kroger'
             ? 'Change King Soopers Selection'
-            : store === 'amazon'
-            ? 'Change Amazon Selection'
             : `Pick a product for \u201c${itemName}\u201d`}
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-sm)' }}>
@@ -46,84 +43,17 @@ export function ProductPicker({ itemId, itemName, kroger, amazon, onConfirm, onC
         </p>
       </header>
 
-      {/* Single-store mode: full-width column for the specified store only */}
-      {store ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-          {store === 'kroger' && (
-            <>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc', marginBottom: 'var(--space-sm)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'var(--space-sm)' }}>
-                KING SOOPERS
-              </h3>
-              {kroger.length === 0 ? (
-                <div style={{ padding: 'var(--space-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No products found</div>
-              ) : kroger.map((p) => (
-                <ProductCard key={p.id} product={p} isSelected={selected?.id === p.id} onClick={() => handleSelect(p)} />
-              ))}
-            </>
-          )}
-          {store === 'amazon' && (
-            <>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ff9900', marginBottom: 'var(--space-sm)', borderBottom: '1px solid rgba(255,153,0,0.2)', paddingBottom: 'var(--space-sm)' }}>
-                AMAZON
-              </h3>
-              {amazon.length === 0 ? (
-                <div style={{ padding: 'var(--space-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No products with pricing available</div>
-              ) : amazon.map((p) => (
-                <ProductCard key={p.id} product={p} isSelected={selected?.id === p.id} onClick={() => handleSelect(p)} />
-              ))}
-            </>
-          )}
-        </div>
-      ) : (
-        /* Dual-store mode: 2-column grid (default when not coming from compare) */
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
-          {/* King Sooper's Column */}
-          <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc', marginBottom: 'var(--space-md)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'var(--space-sm)' }}>
-              KING SOOPERS
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              {kroger.length === 0 ? (
-                <div style={{ padding: 'var(--space-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  No products found
-                </div>
-              ) : (
-                kroger.map((p) => (
-                  <ProductCard
-                    key={p.id}
-                    product={p}
-                    isSelected={selected?.id === p.id}
-                    onClick={() => handleSelect(p)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Amazon Column */}
-          <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ff9900', marginBottom: 'var(--space-md)', borderBottom: '1px solid rgba(255,153,0,0.2)', paddingBottom: 'var(--space-sm)' }}>
-              AMAZON
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-              {amazon.length === 0 ? (
-                <div style={{ padding: 'var(--space-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  No products with pricing available
-                </div>
-              ) : (
-                amazon.map((p) => (
-                  <ProductCard
-                    key={p.id}
-                    product={p}
-                    isSelected={selected?.id === p.id}
-                    onClick={() => handleSelect(p)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* King Soopers product list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc', marginBottom: 'var(--space-sm)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'var(--space-sm)' }}>
+          KING SOOPERS
+        </h3>
+        {kroger.length === 0 ? (
+          <div style={{ padding: 'var(--space-lg)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No products found</div>
+        ) : kroger.map((p) => (
+          <ProductCard key={p.id} product={p} isSelected={selected?.id === p.id} onClick={() => handleSelect(p)} />
+        ))}
+      </div>
 
       {/* Confirmation Area */}
       <footer style={{ marginTop: 'var(--space-2xl)', borderTop: '1px solid var(--border-subtle)', paddingTop: 'var(--space-xl)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
